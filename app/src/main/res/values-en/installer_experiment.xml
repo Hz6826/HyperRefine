@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="section_packageinstaller">Package installer cleanup</string>
+    <string name="installer_experiment_notice">Experimental feature. After changing options, restart the package installer; changes take effect the next time it is invoked. Active/inactive status updates may be delayed. After invoking the package installer, return to this page to check the actual status. Enabling these features may delay installer startup.</string>
+    <string name="packageinstaller_disable_ads">Disable promotions</string>
+    <string name="packageinstaller_disable_ads_summary">Control only advertising promotions in the package installer.</string>
+    <string name="packageinstaller_disable_risk">Disable risk checks</string>
+    <string name="packageinstaller_disable_risk_summary">Block local and cloud risk checks in the installer while retaining Android signature and installation authorization checks.</string>
+    <string name="packageinstaller_block_cloud">Block cloud configuration</string>
+    <string name="packageinstaller_block_cloud_summary">Intercept installer requests for cloud configuration. Existing cache is retained.</string>
+    <string name="packageinstaller_disable_guard">Disable security guard prompts</string>
+    <string name="packageinstaller_disable_guard_summary">Control only installer security guard prompts. This may not take effect.</string>
+    <string name="packageinstaller_disable_frequent_check">Disable frequent installation checks</string>
+    <string name="packageinstaller_disable_frequent_check_summary">Prevent the installer from checking information about frequently installed apps.</string>
+    <string name="packageinstaller_block_upload">Block installation information uploads</string>
+    <string name="packageinstaller_block_upload_summary">Prevent the installer from automatically uploading information about apps being installed. This also affects the corresponding cloud risk assessment results, additional verification and promotions.</string>
+    <string name="installer_diag_title">Installer capability diagnostics (r9)</string>
+    <string name="installer_diag_build">Module: %1$s · %2$s</string>
+    <string name="installer_diag_service">API service bound: %1$s; remote preferences attached: %2$s; installer scope: %3$s</string>
+    <string name="installer_diag_settings">Current local switches: %1$d/6; device SDK: %2$d</string>
+    <string name="installer_diag_checked_at">Local read-only check: %1$s; boot count: %2$d (-1 is unknown)</string>
+    <string name="installer_diag_masks">Six-setting masks at check time: local %1$s / remote %2$s (page order, first option is bit zero)</string>
+    <string name="installer_diag_installer">Installed installer version (PackageManager): %1$s</string>
+    <string name="installer_diag_identity">Installed installer primary DEX fingerprints (diagnostics only, not compatibility): %1$s</string>
+    <string name="installer_diag_view_handlers">VIEW resolved component and candidates: %1$s</string>
+    <string name="installer_diag_install_handlers">INSTALL_PACKAGE resolved component and candidates: %1$s</string>
+    <string name="installer_diag_no_report">No trusted installer report for this build and boot. Diagnostics begin when this experimental feature enters its Load. The installer may not have started, the host may have skipped it earlier, or report delivery/validation may have failed. This alone does not prove missing injection.</string>
+    <string name="installer_diag_latest_report">Last report received: %1$s; PID: %2$d; age when displayed (s): %3$d</string>
+    <string name="installer_diag_not_live">This is the last report snapshot, not proof that the installer is still running or all six features work.</string>
+    <string name="installer_diag_boundary">Refresh queries components and fixed probe intents without launching the installer or reading its input. Partial means some required groups are registered; each option status confirms registration of its required groups only. Display_only hooks are optional and do not count toward 6/6. Hits show callback observations and replacements; completion counts successful asynchronous callbacks. Zero does not prove the original never ran. Counts are from the last snapshot. Diagnostics start at this feature Load and cannot report earlier host skip reasons. Clear removes only this module diagnostic record.</string>
+    <string name="installer_diag_loading">Checking…</string>
+    <string name="installer_diag_refresh">Refresh</string>
+    <string name="installer_diag_copy">Copy</string>
+    <string name="installer_diag_clear">Clear</string>
+    <string name="installer_diag_copied">Diagnostics copied</string>
+    <string name="installer_diag_truncated">The diagnostic length limit was reached; the remaining content was omitted.</string>
+</resources>

@@ -3,6 +3,7 @@ android
 com.android.systemui
 com.miui.home
 com.miui.securitycenter
+com.miui.packageinstaller
 com.milink.service
 com.xiaomi.mirror
 com.miui.misound

@@ -22,6 +22,7 @@
 # 功能
 
 - **通知**（目标 `com.android.systemui` / `com.android.settings` / `system`）— 功能 → 系统界面 → 通知，提供锁屏保留、锁屏显示、悬浮显示、受保护通知修改、重要程度、历史折叠与每应用数量限制七项独立开关，默认均关闭。使用和验证说明见 [通知功能说明](docs/NOTIFICATION_PORT.md)。
+- **应用包管理组件净化（实验性）**（目标 `com.miui.packageinstaller`）— 功能 → 实验性功能 → 应用包管理组件净化，提供推广、风险检测、云配置、安全守护提示、频繁安装检查与安装信息上传控制六项独立开关，默认关闭；保留诊断供反馈。功能代码与资源集中管理，使用现有基础扩展接口，可随整项提交撤回。使用范围与状态含义见 [应用包管理组件净化说明](docs/experimental/packageinstaller/EXPERIMENT.md)。
 
 **模块功能**（目标应用 `com.android.systemui` / `com.miui.securitycenter`）
 

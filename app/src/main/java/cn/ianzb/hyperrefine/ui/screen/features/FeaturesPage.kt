@@ -9,6 +9,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cn.ianzb.hyperrefine.R
+import cn.ianzb.hyperrefine.experimental.packageinstaller.InstallerExperiment
 import cn.ianzb.hyperrefine.hook.assistant.AssistantKeys
 import cn.ianzb.hyperrefine.hook.browser.BrowserKeys
 import cn.ianzb.hyperrefine.hook.connect.ConnectKeys
@@ -212,7 +213,7 @@ fun FeaturesPageView(
             ),
             HookSubPage(
                 titleRes = R.string.section_experimental,
-                specs = listOf(specByKey(specs, KEY_WEATHER)),
+                specs = listOf(specByKey(specs, KEY_WEATHER), InstallerExperiment.entrySpec()),
                 onOpen = { context.startActivity(Intent(context, ExperimentalActivity::class.java)) },
                 subPages = listOf(
                     HookSubPage(
@@ -220,6 +221,7 @@ fun FeaturesPageView(
                         specs = weatherSpecs(specs),
                         onOpen = { context.startActivity(Intent(context, WeatherActivity::class.java)) },
                     ),
+                    InstallerExperiment.searchPage(context),
                 ),
             ),
         )
@@ -1230,6 +1232,7 @@ internal fun featureSpecs(): List<OptionSpec> {
     specs += ccRadiusSpecs(systemUi)
     specs += notificationFeatureSpecs()
     specs += statusBarFeatureSpecs()
+    specs += InstallerExperiment.registrySpecs()
     return specs
 }
 

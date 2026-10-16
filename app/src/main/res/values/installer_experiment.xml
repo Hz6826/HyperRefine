@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="section_packageinstaller">应用包管理组件净化</string>
+    <string name="installer_experiment_notice">实验性功能，更改后需重启应用包管理组件，在下次调用应用包管理组件时生效。已生效/未生效状态可能有延迟，在调用应用包管理组件后回到本页查看实际生效状态。 开启功能后可能会造成安装器启动延迟。</string>
+    <string name="packageinstaller_disable_ads">禁用推广</string>
+    <string name="packageinstaller_disable_ads_summary">仅控制应用安装器的广告推广。</string>
+    <string name="packageinstaller_disable_risk">禁用风险检测</string>
+    <string name="packageinstaller_disable_risk_summary">阻断安装器本地和云端的风险检测，保留Android签名和安装授权校验。</string>
+    <string name="packageinstaller_block_cloud">阻断云端配置下发</string>
+    <string name="packageinstaller_block_cloud_summary">拦截安装器从云端获取配置，已有缓存不会被清除。</string>
+    <string name="packageinstaller_disable_guard">禁用安全守护提示</string>
+    <string name="packageinstaller_disable_guard_summary">仅控制安装器安全守护提示，可能不生效。</string>
+    <string name="packageinstaller_disable_frequent_check">禁用频繁安装应用信息检查</string>
+    <string name="packageinstaller_disable_frequent_check_summary">阻止安装器检查频繁安装的应用信息。</string>
+    <string name="packageinstaller_block_upload">禁止安装时上传应用信息</string>
+    <string name="packageinstaller_block_upload_summary">阻止安装器自动上传安装应用的信息，同时会影响相应的云风险判定结果，附加验证和推广。</string>
+    <string name="installer_diag_title">安装器业务匹配诊断（r9）</string>
+    <string name="installer_diag_build">模块：%1$s · %2$s</string>
+    <string name="installer_diag_service">API 服务已绑定：%1$s；远程偏好已连接：%2$s；安装器作用域：%3$s</string>
+    <string name="installer_diag_settings">当前本地开关：%1$d/6；设备 SDK：%2$d</string>
+    <string name="installer_diag_checked_at">本机只读检查时间：%1$s；开机号：%2$d（-1 为未知）</string>
+    <string name="installer_diag_masks">检查时六项配置位图：本地 %1$s / 远程 %2$s（按页面顺序，首项为最低位）</string>
+    <string name="installer_diag_installer">已安装安装器版本（PackageManager）：%1$s</string>
+    <string name="installer_diag_identity">已安装安装器主 DEX 指纹（仅诊断，不决定功能兼容）：%1$s</string>
+    <string name="installer_diag_view_handlers">VIEW 默认处理器与候选：%1$s</string>
+    <string name="installer_diag_install_handlers">INSTALL_PACKAGE 默认处理器与候选：%1$s</string>
+    <string name="installer_diag_no_report">当前构建及本次开机尚未收到可信安装器回报。诊断从本实验功能的 Load 进入后开始；尚未启动、在宿主早期被跳过或发送/校验失败均可能无回报，不能单凭此处认定未注入。</string>
+    <string name="installer_diag_latest_report">最后回报接收时间：%1$s；PID：%2$d；本次显示时年龄：%3$d 秒</string>
+    <string name="installer_diag_not_live">以上为最后一份回报快照，不代表安装器当前仍在运行或六项业务均已生效。</string>
+    <string name="installer_diag_boundary">刷新仅查询组件及固定探测 Intent，不启动安装器、不读取待安装文件。partial 表示必需组部分挂载；六项状态仅标记必需组完整注册。display_only 是可选推广展示入口，其失败不计入 6/6。hits 的 callback_calls/blocked 为回调观测/实际替换次数；completion 为异步回调成功执行次数。零次不证明原方法未执行；计数为最后快照。诊断从本功能 Load 开始，不报告此前宿主跳过的原因。清除仅删除模块自己的诊断记录。</string>
+    <string name="installer_diag_loading">检查中…</string>
+    <string name="installer_diag_refresh">刷新诊断</string>
+    <string name="installer_diag_copy">复制诊断</string>
+    <string name="installer_diag_clear">清除记录</string>
+    <string name="installer_diag_copied">诊断已复制</string>
+    <string name="installer_diag_truncated">诊断达到长度上限，后续内容已省略。</string>
+</resources>

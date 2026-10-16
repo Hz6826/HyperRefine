@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import cn.ianzb.hyperrefine.R
+import cn.ianzb.hyperrefine.experimental.packageinstaller.InstallerExperiment
 import cn.ianzb.hyperrefine.hook.weather.WeatherKeys
 import cn.ianzb.hyperrefine.ui.component.QuickActionsAction
 import cn.ianzb.hyperrefine.ui.component.pref.HookOptionView
@@ -20,7 +21,7 @@ import cn.ianzb.hyperrefine.ui.util.pageScrollModifiers
 /**
  * 「实验性功能」二级页。
  *
- * 收纳仍在验证中的功能；目前包含「天气高级外观」。
+ * 收纳仍在验证中的功能。
  */
 class ExperimentalActivity : BaseSubPageActivity() {
 
@@ -71,6 +72,7 @@ class ExperimentalActivity : BaseSubPageActivity() {
                     }
                 }
             }
+            item { InstallerExperiment.EntryCard() }
         }
     }
 }

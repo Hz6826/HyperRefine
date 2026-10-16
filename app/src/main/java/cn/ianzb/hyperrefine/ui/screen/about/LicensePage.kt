@@ -197,7 +197,7 @@ private val licenseSections: List<LicenseSection> = listOf(
             LibraryInfo(
                 "HyperCeiler",
                 "-",
-                "AGPL-3.0，仅思路参考",
+                "AGPL-3.0，设备判定与应用包安装器六项功能参考；独立实现，未复用代码或资源",
                 "https://github.com/ReChronoRain/HyperCeiler",
             ),
             LibraryInfo(

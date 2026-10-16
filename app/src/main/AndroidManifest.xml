@@ -132,6 +132,10 @@
             android:exported="false"
             android:theme="@style/Theme.HyperRefine" />
         <activity
+            android:name=".experimental.packageinstaller.PackageInstallerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HyperRefine" />
+        <activity
             android:name=".ui.screen.features.DeviceConnectActivity"
             android:exported="false"
             android:theme="@style/Theme.HyperRefine" />
@@ -151,6 +155,15 @@
             android:name=".ui.screen.safemode.SafeModeActivity"
             android:exported="false"
             android:theme="@style/Theme.HyperRefine" />
+        <!-- 安装器专用诊断：Receiver 严格校验已安装安装器 UID、构建、版本和开机号。 -->
+        <receiver
+            android:name=".experimental.packageinstaller.InstallerDiagnosticReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="cn.ianzb.hyperrefine.action.INSTALLER_DIAGNOSTIC" />
+            </intent-filter>
+        </receiver>
         <!-- 接收目标进程的 Hook 生效回报。来源经发送者 UID / 包名 / 版本校验。 -->
         <receiver
             android:name=".xposed.HookStatusReceiver"
