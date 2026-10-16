@@ -12,10 +12,14 @@ internal fun statusBarFeatureSpecs(): List<OptionSpec> {
         key = key, type = OptionType.SWITCH, titleRes = title,
         defaultBoolean = false, targetPackages = listOf(Keys.TARGET), showStatus = true,
     )
-    fun slider(key: String, title: Int, value: Float, min: Float, max: Float, step: Float = 0.5f) = OptionSpec(
-        key = key, type = OptionType.SLIDER, titleRes = title, defaultFloat = value,
+    // 规范（docs/API.md §5.7）：滑条必须设置 sliderValueLabelRes，标题才会与数值同行显示。
+    fun slider(
+        key: String, title: Int, value: Float, min: Float, max: Float, unit: Int, step: Float = 0.5f,
+    ) = OptionSpec(
+        key = key, type = OptionType.SLIDER, titleRes = title,
+        sliderValueLabelRes = title, defaultFloat = value,
         sliderMin = min, sliderMax = max, sliderStep = step, sliderDecimals = 1,
-        sliderUnitRes = if (key == Keys.DUAL_SCALE) R.string.sb_unit_scale else R.string.sb_unit_dp,
+        sliderUnitRes = unit,
         targetPackages = listOf(Keys.TARGET), dependsOn = Keys.DUAL_ROWS,
     )
     return listOf(
@@ -25,10 +29,10 @@ internal fun statusBarFeatureSpecs(): List<OptionSpec> {
         OptionSpec(key = Keys.DUAL_ROWS, type = OptionType.SWITCH, titleRes = R.string.sb_dual_rows,
             summaryRes = R.string.sb_dual_rows_summary, defaultBoolean = false,
             targetPackages = listOf(Keys.TARGET), showStatus = true),
-        slider(Keys.DUAL_SCALE, R.string.sb_icon_scale, 1f, 0.6f, 1.6f, 0.1f),
-        slider(Keys.DUAL_LEFT_GAP, R.string.sb_left_gap, 0f, 0f, 8f),
-        slider(Keys.DUAL_RIGHT_GAP, R.string.sb_right_gap, 0f, 0f, 8f),
-        slider(Keys.DUAL_OFFSET, R.string.sb_vertical_offset, 0f, -4f, 4f),
+        slider(Keys.DUAL_SCALE, R.string.sb_icon_scale, 1f, 0.6f, 1.6f, R.string.sb_unit_scale, 0.1f),
+        slider(Keys.DUAL_LEFT_GAP, R.string.sb_left_gap, 0f, 0f, 8f, R.string.sb_unit_dp),
+        slider(Keys.DUAL_RIGHT_GAP, R.string.sb_right_gap, 0f, 0f, 8f, R.string.sb_unit_dp),
+        slider(Keys.DUAL_OFFSET, R.string.sb_vertical_offset, 0f, -4f, 4f, R.string.sb_unit_dp),
     )
 }
 

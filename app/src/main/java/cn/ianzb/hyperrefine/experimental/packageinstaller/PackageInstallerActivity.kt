@@ -2,10 +2,12 @@ package cn.ianzb.hyperrefine.experimental.packageinstaller
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import cn.ianzb.hyperrefine.R
 import cn.ianzb.hyperrefine.hook.packageinstaller.PackageInstallerKeys
 import cn.ianzb.hyperrefine.ui.component.QuickActionsAction
@@ -15,7 +17,9 @@ import cn.ianzb.hyperrefine.ui.component.pref.HookSectionCard
 import cn.ianzb.hyperrefine.ui.screen.subpage.BaseSubPageActivity
 import cn.ianzb.hyperrefine.ui.util.LocalSubPageScrollBehavior
 import cn.ianzb.hyperrefine.ui.util.pageScrollModifiers
-import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
 
 class PackageInstallerActivity : BaseSubPageActivity() {
 
@@ -44,8 +48,18 @@ class PackageInstallerActivity : BaseSubPageActivity() {
             contentPadding = contentPadding,
         ) {
             item {
-                HookSectionCard(HookSection(specs = emptyList())) {
-                    BasicComponent(title = stringResource(R.string.installer_experiment_notice))
+                // 声明卡片沿用安全模式页样式：灰色脚注正文，不使用组件标题样式。
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp)
+                ) {
+                    MiuixText(
+                        text = stringResource(R.string.installer_experiment_notice),
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        style = MiuixTheme.textStyles.footnote2,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
                 }
             }
             item {

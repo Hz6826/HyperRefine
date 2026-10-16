@@ -501,7 +501,7 @@
     <string name="sb_mobile_hide_type">Hide network type completely</string>
     <string name="sb_mobile_dual_section">Stacked signals</string>
     <string name="sb_dual_rows">Show two rows of stacked signals</string>
-    <string name="sb_dual_rows_summary">When enabled, mobile signal indicators use a stacked layout. Adjust the scale and position offsets as needed. Restart SystemUI after making changes.</string>
+    <string name="sb_dual_rows_summary">When enabled, mobile signal indicators use a two-row stacked layout. Adjust the scale and offsets below, then restart System UI.</string>
     <string name="sb_icon_scale">Icon scale</string>
     <string name="sb_left_gap">Left spacing</string>
     <string name="sb_right_gap">Right spacing</string>

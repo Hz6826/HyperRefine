@@ -192,7 +192,7 @@
 
 ## 5. 英文文案与专有名词（`values-en`）
 
-界面英文文案集中在 `app/src/main/res/values-en/strings.xml`，与 `values/strings.xml` 同名键一一对应（当前各 454 条）。**专有名词一律使用官方英文名：不直译、不臆造**，中文侧继续按小米中文名书写；同一条文案里只允许一种写法。本节规则由 PR #40（HyperOS 4 英文界面文案修订）归纳。
+界面英文文案集中在 `app/src/main/res/values-en/strings.xml`，与 `values/strings.xml` 同名键一一对应（主文件当前各 463 条；实验性功能的独立资源文件同样成对维护，如 `installer_experiment.xml` 各 34 条）。**专有名词一律使用官方英文名：不直译、不臆造**，中文侧继续按小米中文名书写；同一条文案里只允许一种写法。本节规则由 PR #40（HyperOS 4 英文界面文案修订）归纳。
 
 ### 5.1 官方英文名的取值来源（按顺序）
 
@@ -230,6 +230,7 @@
 | `split screen`（`side-by-side` / `top-and-bottom`） | `split window left/right` | 分屏与方向 |
 | `Wi-Fi` / `WLAN` | `Wifi` / `wifi` | 无线网络；`WLAN / mobile data` 指 WLAN 与移动数据 |
 | `Root` | `root`（指权限时） | 权限名，如 `Root access not granted.` |
+| `System UI` | `SystemUI` / `System Ui` | 系统界面；界面文案统一写 `System UI`，进程与包名在代码里按 `com.android.systemui` 书写 |
 | `DexKit` / `LSPosed` / `Miuix` / `libxposed` | 大小写随意写 | 框架与依赖名按官方大小写 |
 
 ### 5.3 写法规则

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="section_packageinstaller">应用包管理组件净化</string>
-    <string name="installer_experiment_notice">实验性功能，更改后需重启应用包管理组件，在下次调用应用包管理组件时生效。已生效/未生效状态可能有延迟，在调用应用包管理组件后回到本页查看实际生效状态。 开启功能后可能会造成安装器启动延迟。</string>
+    <string name="installer_experiment_notice">实验性功能，更改后需重启应用包管理组件，在下次调用应用包管理组件时生效。已生效/未生效状态可能有延迟，在调用应用包管理组件后回到本页查看实际生效状态。开启功能后可能会造成安装器启动延迟。</string>
     <string name="packageinstaller_disable_ads">禁用推广</string>
     <string name="packageinstaller_disable_ads_summary">仅控制应用安装器的广告推广。</string>
     <string name="packageinstaller_disable_risk">禁用风险检测</string>
@@ -13,7 +13,7 @@
     <string name="packageinstaller_disable_frequent_check">禁用频繁安装应用信息检查</string>
     <string name="packageinstaller_disable_frequent_check_summary">阻止安装器检查频繁安装的应用信息。</string>
     <string name="packageinstaller_block_upload">禁止安装时上传应用信息</string>
-    <string name="packageinstaller_block_upload_summary">阻止安装器自动上传安装应用的信息，同时会影响相应的云风险判定结果，附加验证和推广。</string>
+    <string name="packageinstaller_block_upload_summary">阻止安装器自动上传安装应用的信息，同时会影响相应的云风险判定结果、附加验证和推广。</string>
     <string name="installer_diag_title">安装器业务匹配诊断（r9）</string>
     <string name="installer_diag_build">模块：%1$s · %2$s</string>
     <string name="installer_diag_service">API 服务已绑定：%1$s；远程偏好已连接：%2$s；安装器作用域：%3$s</string>
