@@ -24,8 +24,8 @@ import kotlin.math.min
  *    因此在动画插值回调 `ClipImageView$b#onUpdate` 之后，按进度重新写入未裁剪的圆角，
  *    使圆角能从「屏幕圆角」平滑过渡到「卡片圆角」。
  *
- * 注意屏幕圆角**不保证**大于卡片圆角：平板上常见「屏幕圆角 < 卡片圆角」（Xiaomi Pad 7 Ultra：
- * 圆角 54px、密度 440dpi ≈ 19.6dp，而卡片圆角 `screen_recognition_container_radius` 为 24dp）。
+ * 注意屏幕圆角**不保证**大于卡片圆角：平板上常见「屏幕圆角 < 卡片圆角」（实测某 440dpi 平板：
+ * 圆角 54px ≈ 19.6dp，而卡片圆角 `screen_recognition_container_radius` 为 24dp）。
  * 这种设备上应用自身「取小」的裁剪不会出问题，但起始圆角仍应按屏幕圆角过渡（19.6dp → 24dp），
  * 因此是否改写只与「应用写死的起始圆角」比较，不能与卡片圆角比较。
  */

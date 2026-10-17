@@ -425,13 +425,13 @@ HookOptionsPage(
 
 ### 11.2 Based on 约定
 
-衍生项目**只需**在应用内「关于」页保留形如 `Based on MiuixGuiTemplate <版本号>` 的文本（示例：`Based on MiuixGuiTemplate 0.3.1`），并把版本号更新为**所依据的脚手架版本**；**无需**在各自的 `README.md` 中强调或标注。
+衍生项目**只需**在应用内「关于」页保留形如 `Based on MiuixGuiTemplate <版本号>` 的文本，并把版本号更新为**所依据的脚手架版本**；**无需**在各自的 `README.md` 中强调或标注。
 
 | 落点 | 文件 |
 |---|---|
 | 应用内「关于」页 Logo 下方 | `strings.xml` → `about_based_on`（两套语言均改） |
 
-用途：同步脚手架的修复与改进时，以该版本号判断差异范围。当前已知衍生项目：**HyperNavBar**（`Based on MiuixGuiTemplate 0.3.0`）。
+用途：同步脚手架的修复与改进时，以该版本号判断差异范围。当前已知衍生项目：**HyperNavBar**。
 
 ### 11.3 一次性核对清单
 
