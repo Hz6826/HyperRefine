@@ -222,6 +222,12 @@
     <string name="dp_unit">dp</string>
     <string name="top_bar_gradient_opacity">不透明度</string>
     <string name="top_bar_gradient_opacity_summary">模糊层的透明程度</string>
+    <string name="top_bar_multi_blur">同时显示多个模糊</string>
+    <string name="top_bar_multi_blur_summary">危险：双栏/三栏同时保留真实模糊，可能触发图形驱动崩溃；仅用于验证</string>
+    <string name="top_bar_multi_blur_fallback">其余顶栏显示</string>
+    <string name="top_bar_multi_blur_fallback_summary">仅保留一个模糊时，其他顶栏的降级样式</string>
+    <string name="top_bar_multi_blur_fallback_none">无渐变</string>
+    <string name="top_bar_multi_blur_fallback_mask">透明度渐变</string>
     <string name="section_top_bar_advanced">应用专属适配</string>
     <string name="top_bar_advanced">应用专属适配</string>
     <string name="top_bar_advanced_summary">针对笔记、计算器的额外美化；关闭后回退为通用效果</string>

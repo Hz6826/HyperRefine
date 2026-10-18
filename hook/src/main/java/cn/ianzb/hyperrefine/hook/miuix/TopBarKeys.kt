@@ -30,6 +30,15 @@ object TopBarKeys {
     /** 文件管理专属适配：修复文件夹页文件列表被路径栏遮挡。 */
     const val ADVANCED_FILE_EXPLORER = "top_bar_gradient_advanced_file_explorer"
 
+    /** 多模糊行为：同时保留所有栏的真实模糊（已知会触发部分设备图形驱动崩溃）。 */
+    const val MULTI_BLUR = "top_bar_gradient_multi_blur"
+
+    /** 非 owner 栏的降级样式：无渐变 / 恢复 hook 前的透明度渐变。 */
+    const val MULTI_BLUR_FALLBACK = "top_bar_gradient_multi_blur_fallback"
+
+    const val FALLBACK_NONE = "none"
+    const val FALLBACK_MASK = "mask"
+
     /** 应用专属适配总开关是否开启（默认开启，保持原有行为）。 */
     fun advancedEnabled(): Boolean = HookPrefs.getBoolean(ADVANCED, true)
 
@@ -44,4 +53,11 @@ object TopBarKeys {
     /** 文件管理专属适配是否开启。 */
     fun fileExplorerAdvancedEnabled(): Boolean =
         advancedEnabled() && HookPrefs.getBoolean(ADVANCED_FILE_EXPLORER, true)
+
+    /** 是否允许同窗口同时保留多个真实模糊（危险，默认关闭）。 */
+    fun multiBlurEnabled(): Boolean = HookPrefs.getBoolean(MULTI_BLUR, false)
+
+    /** 非 owner 栏的降级样式；默认恢复 hook 前的透明度渐变。 */
+    fun multiBlurFallbackMask(): Boolean =
+        (HookPrefs.getString(MULTI_BLUR_FALLBACK, FALLBACK_MASK) ?: FALLBACK_MASK) != FALLBACK_NONE
 }

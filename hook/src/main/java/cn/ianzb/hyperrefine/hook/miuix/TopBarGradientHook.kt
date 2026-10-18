@@ -70,6 +70,10 @@ open class TopBarGradientHook : BaseHook() {
     private class State(val blur: View) {
         var original: Drawable? = null
         var cleared: Boolean = false
+        /** 当前是否已经恢复 hook 前的 MIUIX 渐变遮罩（非活跃栏的降级样式）。 */
+        var maskRestored: Boolean = false
+        /** 非活跃栏：跳过本 Hook，交还原生 MIUIX 渐变遮罩绘制。 */
+        var useOriginalMask: Boolean = false
         var lastRadius: Float = -1f
         var lastHeight: Int = -1
         var lastAlpha: Float = 0f
@@ -77,6 +81,9 @@ open class TopBarGradientHook : BaseHook() {
         var warmedUp: Boolean = false
         var warmingUp: Boolean = false
         var demotedForContention: Boolean = false
+        /** 实验路径使用的 AOSP 背景模糊 drawable。 */
+        var selfBlur: Drawable? = null
+        var windowBlurEnabled: Boolean = false
         var lastUpdateAt: Long = 0L
         var drawStreak: Int = 0
     }
@@ -113,6 +120,8 @@ open class TopBarGradientHook : BaseHook() {
     private var mSetViewMode: Method? = null
     private var mSetGradient: Method? = null
     private var mSetScaleRatio: Method? = null
+    private var mGetPrimary: Method? = null
+    private var mSetPrimary: Method? = null
 
     private val states: MutableMap<ViewGroup, State> =
         Collections.synchronizedMap(WeakHashMap())
@@ -193,6 +202,8 @@ open class TopBarGradientHook : BaseHook() {
         mSetViewMode = setViewMode
         mSetGradient = setGradient
         mSetScaleRatio = setScaleRatio
+        mGetPrimary = getPrimary
+        mSetPrimary = setPrimary
 
         val painterIsOnDraw = painter.name == "onDraw" &&
             painter.parameterTypes.contentEquals(arrayOf(Canvas::class.java))
@@ -238,10 +249,12 @@ open class TopBarGradientHook : BaseHook() {
                 val result = chain.proceed()
                 (chain.thisObject as? ViewGroup)?.let { bar ->
                     val state = states[bar]
-                    if (state != null) {
-                        // 用户开始滚动这一栏：owner 转移给它，上一栏释放。
+                    if (state != null && !TopBarKeys.multiBlurEnabled()) {
+                        // 用户开始滚动这一栏：owner 转移给它，上一栏恢复原生遮罩。
                         forceOwner(bar)
                         state.demotedForContention = false
+                        state.useOriginalMask = false
+                        hideNativeMask(bar)
                         runCatching { demoteOtherActiveBars(bar, setType, setMode, setViewMode) }
                     }
                 }
@@ -301,7 +314,9 @@ open class TopBarGradientHook : BaseHook() {
                     )
                 }
             }
-            if (painterIsOnDraw && bar != null && enabled() && states.containsKey(bar)) {
+            if (painterIsOnDraw && bar != null && enabled() &&
+                states[bar]?.useOriginalMask != true
+            ) {
                 val original = runCatching { alphaField.getFloat(bar) }.getOrDefault(0f)
                 try {
                     alphaField.setFloat(bar, 0f)
@@ -317,7 +332,11 @@ open class TopBarGradientHook : BaseHook() {
         if (!painterIsOnDraw) {
             HookHelper.intercept(painter) { chain ->
                 val bar = chain.thisObject as? ViewGroup
-                if (bar != null && enabled() && states.containsKey(bar)) null else chain.proceed()
+                if (bar != null && enabled() && states[bar]?.useOriginalMask != true) {
+                    null
+                } else {
+                    chain.proceed()
+                }
             }
         }
     }
@@ -326,13 +345,55 @@ open class TopBarGradientHook : BaseHook() {
     protected open fun accepts(bar: ViewGroup): Boolean = true
 
     /** 从 View 的 Context 链中取当前 Activity 类名（拿不到时返回 null）。 */
-    protected fun activityName(view: View): String? {
+    protected fun activityName(view: View): String? = activityOf(view)?.javaClass?.name
+
+    private fun activityOf(view: View): Activity? {
         var context = view.context
         while (context is ContextWrapper) {
-            if (context is Activity) return context.javaClass.name
+            if (context is Activity) return context
             context = context.baseContext
         }
         return null
+    }
+
+    /** 只有笔记用 NestedHeaderLayout 的遮罩作为降级样式；其它应用用 ActionBar 自带遮罩。 */
+    private fun usesNestedMask(bar: View): Boolean =
+        bar.context.packageName == NOTES_PACKAGE
+
+    private fun showNativeMask(bar: View) {
+        if (usesNestedMask(bar)) NestedHeaderMaskHook.showMaskForBar(bar)
+    }
+
+    private fun hideNativeMask(bar: View) {
+        if (usesNestedMask(bar)) NestedHeaderMaskHook.hideMaskForBar(bar)
+    }
+
+    /** 非 owner 栏的降级样式：透明度渐变（默认）或什么都不显示。 */
+    private fun applyFallback(bar: ViewGroup, state: State) {
+        if (TopBarKeys.multiBlurFallbackMask()) {
+            state.useOriginalMask = true
+            showNativeMask(bar)
+        } else {
+            state.useOriginalMask = false
+            hideNativeMask(bar)
+        }
+    }
+
+    /**
+     * AOSP `BackgroundBlurDrawable` 只有在窗口允许 blur-behind 时才会真正采样背景；
+     * 否则它只会画出黑色遮罩。MIUI 的 `setMiBackgroundBlurMode` 不需要这个窗口标志。
+     */
+    private fun enableWindowBlur(bar: View, state: State) {
+        if (state.windowBlurEnabled) return
+        val activity = activityOf(bar) ?: return
+        runCatching {
+            val window = activity.window
+            val attrs = window.attributes
+            attrs.flags = attrs.flags or android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+            attrs.blurBehindRadius = (bar.height / 3).coerceAtLeast(20)
+            window.attributes = attrs
+            state.windowBlurEnabled = true
+        }.onFailure { HookHelper.log("TopBarGradient: enable window blur failed", it) }
     }
 
     /** 导航转场 ghost 快照里也会挂 ActionBarContainer，不应成为 blur owner。 */
@@ -378,6 +439,8 @@ open class TopBarGradientHook : BaseHook() {
         val state = states[bar] ?: return
         // 被让位的节点在恢复前不再参与绘制/让位判定，避免双栏两侧每帧互相 demote。
         if (state.demotedForContention) return
+        // 非活跃栏交还原生 MIUIX 渐变遮罩绘制；不要继续改 alpha/primary。
+        if (state.useOriginalMask) return
         val now = SystemClock.uptimeMillis()
         val previousDrawAt = state.lastUpdateAt
         state.lastUpdateAt = now
@@ -388,13 +451,12 @@ open class TopBarGradientHook : BaseHook() {
             hide(bar, state, setType, setMode, setViewMode)
             return
         }
-        if (!state.cleared) {
-            state.original = runCatching { getPrimary?.invoke(bar) as? Drawable }.getOrNull()
-            state.cleared = true
-        }
+        ensureOriginal(bar, state)
         if (getPrimary != null && setPrimary != null) {
             runCatching { if (getPrimary.invoke(bar) != null) setPrimary.invoke(bar, null) }
         }
+        state.maskRestored = false
+        hideNativeMask(bar)
 
         val conf = config()
         val strength = conf.strength.coerceIn(0, 100)
@@ -424,10 +486,15 @@ open class TopBarGradientHook : BaseHook() {
             scheduleRelease(bar, state, setType, setMode, setViewMode)
             return
         }
+        if (SELF_BLUR_EXPERIMENT) {
+            applySelfBlur(bar, state, radius, alpha)
+            return
+        }
         // 双栏/三栏共进程时只允许一个活跃 blur 节点；第一个真正有 alpha 的栏成为 owner，
         // 其它栏立即让位（下一帧释放，避免在 RenderThread 提交期间销毁节点）。
         if (!claimOwner(bar)) {
             state.demotedForContention = true
+            applyFallback(bar, state)
             bar.post {
                 if (state.demotedForContention && bar.isAttachedToWindow) {
                     runCatching { hide(bar, state, setType, setMode, setViewMode) }
@@ -473,10 +540,35 @@ open class TopBarGradientHook : BaseHook() {
         }
         state.cleared = false
         state.original = null
+        state.maskRestored = true
+    }
+
+    /** 缓存 hook 前的 MIUIX 渐变遮罩；后续被让位时用它降级显示。 */
+    private fun ensureOriginal(bar: ViewGroup, state: State) {
+        if (state.cleared) return
+        state.original = runCatching { mGetPrimary?.invoke(bar) as? Drawable }.getOrNull()
+        state.cleared = true
     }
 
     private fun hide(bar: ViewGroup, state: State, setType: Method, setMode: Method, setViewMode: Method) {
         cancelRelease(bar, state)
+        // MIUIX 的渐变遮罩只在「没有非透明主背景」时才绘制；这里保持 primary 为 null，
+        // 让 onDraw 的原生遮罩接管，而不是恢复主背景把遮罩挡掉。
+        if (enabled()) {
+            ensureOriginal(bar, state)
+            runCatching { mSetPrimary?.invoke(bar, null) }
+        }
+        if (state.useOriginalMask) showNativeMask(bar)
+        if (SELF_BLUR_EXPERIMENT) {
+            state.lastAlpha = 0f
+            if (state.blur.visibility != View.INVISIBLE) state.blur.visibility = View.INVISIBLE
+            // 移除 BackgroundBlurDrawable，让 ViewRootImpl 的 Aggregator 注销该模糊区域。
+            if (state.blur.background != null) state.blur.background = null
+            state.selfBlur = null
+            state.lastRadius = -1f
+            state.lastHeight = -1
+            return
+        }
         if (state.lastRadius >= 0f) {
             // 转场/窗口销毁时厂商方法可能抛异常；让位失败不应让目标进程崩溃。
             runCatching {
@@ -489,6 +581,44 @@ open class TopBarGradientHook : BaseHook() {
         }
         state.lastAlpha = 0f
         if (state.blur.visibility != View.INVISIBLE) state.blur.visibility = View.INVISIBLE
+    }
+
+    /**
+     * 实验路径：不使用 MIUI `setMiBackgroundBlurMode` 的 RenderNode blur 节点，
+     * 改用 AOSP `View.setBackgroundBlur`（`BackgroundBlurDrawable`）。
+     *
+     * 后者的 `ViewRootImpl.Aggregator` 用 ArraySet 聚合同一窗口的多个模糊区域，
+     * 理论上允许一窗多块；这里先验证多栏同时存在时 Adreno Vulkan 是否仍会崩。
+     */
+    private fun applySelfBlur(bar: ViewGroup, state: State, radius: Float, alpha: Float) {
+        enableWindowBlur(bar, state)
+        val r = radius.roundToInt().coerceAtLeast(1)
+        if (state.selfBlur == null) {
+            val drawable = runCatching {
+                val viewRoot = Reflect.callMethod(bar, "getViewRootImpl")
+                    ?: throw IllegalStateException("ViewRootImpl is null")
+                Reflect.callMethod(viewRoot, "createBackgroundBlurDrawable") as? Drawable
+                    ?: throw IllegalStateException("createBackgroundBlurDrawable is null")
+            }.getOrElse {
+                HookHelper.log("TopBarGradient: createBackgroundBlurDrawable failed", it)
+                return
+            }
+            state.selfBlur = drawable
+            // 这条路径只画实时模糊；颜色保持透明，避免 AOSP drawable 的遮罩路径被画成黑块。
+            runCatching { Reflect.callMethod(drawable, "setColor", 0) }
+            runCatching { Reflect.callMethod(drawable, "setBlurRadius", r) }
+            state.blur.background = drawable
+            state.lastRadius = r.toFloat()
+        } else if (state.lastRadius != r.toFloat()) {
+            runCatching { Reflect.callMethod(state.selfBlur!!, "setBlurRadius", r) }
+            state.lastRadius = r.toFloat()
+        }
+        val stepped = (alpha.coerceIn(0f, 1f) * ALPHA_STEPS).roundToInt() / ALPHA_STEPS
+        if (state.lastAlpha != stepped) {
+            state.blur.alpha = stepped
+            state.lastAlpha = stepped
+        }
+        if (state.blur.visibility != View.VISIBLE) state.blur.visibility = View.VISIBLE
     }
 
     /** 遮罩持续归零后延迟释放模糊管线；期间重新出现（alpha > 0）则取消。 */
@@ -549,6 +679,11 @@ open class TopBarGradientHook : BaseHook() {
         setGradient: Method,
         setScaleRatio: Method?,
     ) {
+        if (SELF_BLUR_EXPERIMENT) {
+            // BackgroundBlurDrawable 没有独立管线需要预热；避免走厂商 blur 初始化。
+            state.warmedUp = true
+            return
+        }
         if (!enabled()) {
             state.warmedUp = false
             return
@@ -605,6 +740,8 @@ open class TopBarGradientHook : BaseHook() {
     /** 申领唯一 blur owner；owner 已失效或就是自己时成功。 */
     @Synchronized
     private fun claimOwner(bar: ViewGroup): Boolean {
+        // 调试选项：放开 owner 限制，允许同窗口所有栏同时保留真实模糊。
+        if (TopBarKeys.multiBlurEnabled()) return true
         val owner = ownerRef?.get()
         if (owner == null || owner === bar || !owner.isAttachedToWindow) {
             ownerRef = WeakReference(bar)
@@ -629,12 +766,15 @@ open class TopBarGradientHook : BaseHook() {
         setMode: Method,
         setViewMode: Method,
     ) {
+        if (TopBarKeys.multiBlurEnabled()) return
         val snapshot = synchronized(states) { states.entries.toList() }
         for (entry in snapshot) {
             if (entry.key === current) continue
             val other = entry.value
             if (other.lastAlpha <= 0f) continue
             other.demotedForContention = true
+            // 按配置决定让位栏恢复原生渐变，或保持空白。
+            applyFallback(entry.key, other)
             val host = entry.key
             // 不要在 onDraw 调用栈里同步切换厂商 blur 模式：RenderThread 可能仍在
             // 提交上一帧，Vulkan 驱动会把已释放的 blur 节点当作有效资源（SIGSEGV）。
@@ -783,6 +923,18 @@ open class TopBarGradientHook : BaseHook() {
 
         /** 跟随遮罩的透明度量化级数（视觉连续，减少无意义的合成更新）。 */
         const val ALPHA_STEPS = 64f
+
+        /** 笔记使用 NestedHeaderLayout 的原生渐变遮罩作为降级样式。 */
+        const val NOTES_PACKAGE = "com.miui.notes"
+
+        /**
+         * 实验开关：用 AOSP BackgroundBlurDrawable 替代 MIUI RenderNode blur。
+         *
+         * 实测（笔记 3.2.7.9 / HyperOS 4）：应用窗口没有系统级 blur-behind 授权时，
+         * `BackgroundBlurDrawable` 只画出黑色遮罩，不会采样背景；即使补上
+         * `FLAG_BLUR_BEHIND` 也不会生效。因此默认关闭，保留 MIUI 原生模糊的单 owner 方案。
+         */
+        const val SELF_BLUR_EXPERIMENT = false
 
         /** 导航转场 ghost 快照的容器 id；其中的 ActionBar 不参与 blur。 */
         val GHOST_VIEW_IDS = setOf("ghost_nav_view", "ghost_clip_view", "ghost_fading_mask_view")

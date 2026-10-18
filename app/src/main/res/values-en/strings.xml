@@ -222,6 +222,12 @@
     <string name="dp_unit">dp</string>
     <string name="top_bar_gradient_opacity">Opacity</string>
     <string name="top_bar_gradient_opacity_summary">Opacity of the blur layer</string>
+    <string name="top_bar_multi_blur">Show multiple blurs</string>
+    <string name="top_bar_multi_blur_summary">Danger: keeps real blur on split panes at once and may crash the graphics driver; for testing only</string>
+    <string name="top_bar_multi_blur_fallback">Other top bars</string>
+    <string name="top_bar_multi_blur_fallback_summary">Fallback style for non-active top bars when only one blur is kept</string>
+    <string name="top_bar_multi_blur_fallback_none">No gradient</string>
+    <string name="top_bar_multi_blur_fallback_mask">Transparency gradient</string>
     <string name="section_top_bar_advanced">App-specific adjustments</string>
     <string name="top_bar_advanced">App-specific adjustments</string>
     <string name="top_bar_advanced_summary">Extra polish for Notes and Calculator; turn off to use the generic effect</string>

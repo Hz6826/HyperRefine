@@ -21,7 +21,7 @@ import cn.ianzb.hyperrefine.ui.util.pageScrollModifiers
  *
  * 把系统应用（设置 / 短信 / 联系人等 MIUIX 应用）顶栏的原生遮罩替换为「顶部模糊、向下渐变透明」的模糊层。
  *
- * - 顶栏渐变：总开关 / 模糊强度 / 不透明度
+ * - 顶栏渐变：总开关 / 模糊强度 / 不透明度 / 多模糊行为
  * - 应用专属适配：统一开关 + 笔记 / 计算器 / 文件管理
  */
 class TopBarBlurActivity : BaseSubPageActivity() {
@@ -43,6 +43,8 @@ class TopBarBlurActivity : BaseSubPageActivity() {
                 featureSpec(TopBarKeys.KEY),
                 featureSpec(TopBarKeys.STRENGTH),
                 featureSpec(TopBarKeys.OPACITY),
+                featureSpec(TopBarKeys.MULTI_BLUR),
+                featureSpec(TopBarKeys.MULTI_BLUR_FALLBACK),
             ),
         )
         // 应用专属适配：统一开关 + 笔记 / 计算器 / 文件管理单独开关。
