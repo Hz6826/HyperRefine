@@ -22,6 +22,9 @@
 
 - **壁纸 · 模糊背景未跟随深色压暗**（目标 `com.android.systemui` / `com.miui.personalassistant`）：控制中心、负一屏取壁纸做模糊的背景此前停在压暗前的亮度（压暗改的是壁纸图层的 alpha，模糊读的是壁纸纹理）；现在给这类模糊容器补上同浓度的压暗层，背后是应用而不是壁纸时自动不加。重启系统界面生效。
 - **安全模式 · 快速重启被误判为崩溃循环**：系统界面等进程短时间内被重启两次就会被计为崩溃循环、自动跳过全部 Hook（表现为多应用音量入口消失、系统界面侧功能全部无效，真机日志已确认该链路）。现在阈值提高到连续 3 次，应用内主动发起的重启后 30 秒内的启动与子进程上报均不计入；误触发后可在「设置 → 安全模式」一键恢复。
+- **顶栏渐变模糊 · 平板双栏崩溃 / 模糊不恢复**（目标 `com.miui.notes` / `com.android.fileexplorer`）：平板笔记和文件管理会在同一进程里同时挂多个 `ActionBarContainer`（双栏 + 导航转场 ghost 快照）。此前每个顶栏都创建 blur 节点并互相让位，滚动时每帧反复切换厂商 blur 模式，Adreno Vulkan 驱动在 RenderThread 提交阶段空指针崩溃；崩溃前还会互相隐藏，表现为模糊消失且不再恢复。现改为**进程级唯一 blur owner**：只保留当前栏的节点，用户滚动另一栏时转移 owner，不再同时恢复第二个节点；让位释放延迟到下一帧，避免在 `onDraw` 调用栈内销毁正在提交的 blur 资源。
+- **顶栏渐变模糊 · 文件管理文件夹顶部间距**（目标 `com.android.fileexplorer`）：文件夹页的路径栏是 `ActionBarContainer` 的 sticky view，ActionBar 高度已包含路径栏，但文件管理的 `NestedHeaderLayout` 没有开启 `enableStickyViewContentInset`，`SpringBackLayout` 仍从标题栏底部开始布局，首个文件被路径栏盖住。现按「ActionBar sticky view 是否为路径栏」做结构判定，覆盖手机普通布局、平板双栏与第三方文件选择器，不依赖具体 Fragment 类；路径栏出现/高度变化后自动修正，离开文件夹页恢复。
+- **顶栏渐变模糊 · AI 通话详情页**（目标 `com.xiaomi.phone`）：为 `com.xiaomi.phone.settings.AiCallDetailActivity` 接入顶栏渐变模糊，仅接管该 Activity 的 `ActionBarContainer`，不影响拨号、通话中等其它页面；需在 LSPosed 作用域中勾选「电话」。
 
 - **侧边音量条 · 多应用入口出现后整条发虚**（目标 `com.android.systemui`）：官方形变动画播放期间不再改变窗口高度，自动平衡平移取整到物理像素。
 - **通话时系统界面 ANR（多应用音量探测阻塞主线程）**（目标 `com.android.systemui`）：正在播放应用的探测移出主线程、改后台快照，通话时不再因音频服务阻塞导致输入超时 ANR。

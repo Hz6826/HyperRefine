@@ -24,7 +24,11 @@ class MiuixAppLoad : BaseLoad() {
             // 关闭「应用专属适配」或「计算器」后回退为通用实现。
             val special = target.packageName in NEW_ACTIONBAR_PACKAGES &&
                 TopBarKeys.calculatorAdvancedEnabled()
-            val hook = if (special) CalculatorTopBarGradientHook() else TopBarGradientHook()
+            val hook = when {
+                special -> CalculatorTopBarGradientHook()
+                target.packageName == XIAOMI_PHONE -> AiCallDetailTopBarGradientHook()
+                else -> TopBarGradientHook()
+            }
             initHook(hook, enabled)
         }
         // MIUIX NestedHeaderLayout 自带的滚动渐变遮罩（如笔记标题下方那条）由顶栏渐变接管后多余，隐藏之。
@@ -39,6 +43,7 @@ class MiuixAppLoad : BaseLoad() {
     companion object {
         const val BAR_CLASS = "miuix.appcompat.internal.app.widget.ActionBarContainer"
         const val FILE_EXPLORER = "com.android.fileexplorer"
+        const val XIAOMI_PHONE = "com.xiaomi.phone"
 
         /** 自带新版 MIUIX（遮罩由 `Paint` + `Path` 渐变绘制）的应用，需用专用适配。 */
         val NEW_ACTIONBAR_PACKAGES: Set<String> = setOf("com.miui.calculator")
@@ -49,6 +54,7 @@ class MiuixAppLoad : BaseLoad() {
             "com.android.mms",
             "com.android.contacts",
             "com.android.phone",
+            "com.xiaomi.phone",
             // 常用系统应用
             "com.android.deskclock",
             "com.android.fileexplorer",

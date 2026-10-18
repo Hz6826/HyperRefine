@@ -1,5 +1,7 @@
 package cn.ianzb.hyperrefine.hook.miuix
 
+import android.app.Activity
+import android.content.ContextWrapper
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.os.Handler
@@ -7,6 +9,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewParent
 import cn.ianzb.hyperrefine.hook.base.BaseHook
 import cn.ianzb.hyperrefine.hook.prefs.HookPrefs
 import cn.ianzb.hyperrefine.hook.xposed.HookHelper
@@ -92,6 +95,14 @@ open class TopBarGradientHook : BaseHook() {
     private var lastGlobalActivityAt: Long = 0L
 
     private var pendingRestoreCheck: Runnable? = null
+
+    /**
+     * 当前唯一允许保留活跃 blur 节点的顶栏。
+     *
+     * 平板双栏/三栏共进程时，系统 Vulkan 驱动无法稳定同时提交多个 MIUI blur 节点；
+     * 这里用一个进程级 owner 保证任意时刻只保留一个，切换栏时转移 owner 而不是两边并存。
+     */
+    private var ownerRef: WeakReference<ViewGroup>? = null
 
     private val mainHandler: Handler by lazy { Handler(Looper.getMainLooper()) }
 
@@ -193,7 +204,7 @@ open class TopBarGradientHook : BaseHook() {
         HookHelper.intercept(inflate) { chain ->
             val result = chain.proceed()
             (chain.thisObject as? ViewGroup)?.let { bar ->
-                if (isSplitField?.getBoolean(bar) != true) {
+                if (isSplitField?.getBoolean(bar) != true && !isGhostBar(bar) && accepts(bar)) {
                     runCatching { ensure(bar, isSplitField != null) }
                 }
             }
@@ -206,12 +217,8 @@ open class TopBarGradientHook : BaseHook() {
             if (method == null) return
             HookHelper.intercept(method) { chain ->
                 val result = chain.proceed()
-                val bar = chain.thisObject as? ViewGroup
-                if (bar != null && states.containsKey(bar) &&
-                    runCatching { bar.hasWindowFocus() }.getOrDefault(false)
-                ) {
-                    runCatching { restoreDemotedBars() }
-                }
+                // 单 owner 模式下不在滚动结束恢复对侧节点：恢复第二个 blur 节点会
+                // 再次触发 Adreno Vulkan 崩溃。owner 自身的模糊在 update 中自然重建。
                 result
             }
         }
@@ -230,7 +237,11 @@ open class TopBarGradientHook : BaseHook() {
             HookHelper.intercept(accepted) { chain ->
                 val result = chain.proceed()
                 (chain.thisObject as? ViewGroup)?.let { bar ->
-                    if (states.containsKey(bar)) {
+                    val state = states[bar]
+                    if (state != null) {
+                        // 用户开始滚动这一栏：owner 转移给它，上一栏释放。
+                        forceOwner(bar)
+                        state.demotedForContention = false
                         runCatching { demoteOtherActiveBars(bar, setType, setMode, setViewMode) }
                     }
                 }
@@ -311,6 +322,34 @@ open class TopBarGradientHook : BaseHook() {
         }
     }
 
+    /** 子类可限制只接管某些 Activity 的顶栏；默认接管当前包内所有 MIUIX 顶栏。 */
+    protected open fun accepts(bar: ViewGroup): Boolean = true
+
+    /** 从 View 的 Context 链中取当前 Activity 类名（拿不到时返回 null）。 */
+    protected fun activityName(view: View): String? {
+        var context = view.context
+        while (context is ContextWrapper) {
+            if (context is Activity) return context.javaClass.name
+            context = context.baseContext
+        }
+        return null
+    }
+
+    /** 导航转场 ghost 快照里也会挂 ActionBarContainer，不应成为 blur owner。 */
+    private fun isGhostBar(bar: View): Boolean {
+        var parent: ViewParent? = bar.parent
+        while (parent is View) {
+            if (parent.id != View.NO_ID) {
+                val name = runCatching {
+                    parent.resources.getResourceEntryName(parent.id)
+                }.getOrNull()
+                if (name in GHOST_VIEW_IDS) return true
+            }
+            parent = parent.parent
+        }
+        return false
+    }
+
     private fun ensure(bar: ViewGroup, matchParent: Boolean): State = states[bar] ?: run {
         val blur = View(bar.context).apply {
             isClickable = false
@@ -337,23 +376,13 @@ open class TopBarGradientHook : BaseHook() {
         setPrimary: Method?,
     ) {
         val state = states[bar] ?: return
+        // 被让位的节点在恢复前不再参与绘制/让位判定，避免双栏两侧每帧互相 demote。
+        if (state.demotedForContention) return
         val now = SystemClock.uptimeMillis()
         val previousDrawAt = state.lastUpdateAt
         state.lastUpdateAt = now
-        lastGlobalActivityAt = now
         // 连续绘制计数：帧间隔小于 CONTINUOUS_DRAW_MS 视为"本窗口正在持续出帧"。
         state.drawStreak = if (now - previousDrawAt <= CONTINUOUS_DRAW_MS) state.drawStreak + 1 else 0
-        // 平板双栏（左右两个窗口共进程）：未聚焦且另一侧窗口仍在持续绘制（滚动/动画）时让位。
-        // 实测：让位侧即使以「冻结帧」保持可见（停止一切更新）也仍会卡死——系统 blur 节点
-        // 只要可见/激活就持续参与渲染，没有可暂停的档位；因此只能释放节点，对侧静止后自动恢复。
-        if (!bar.hasWindowFocus() && hasRecentlyDrawingOtherBar(bar, now)) {
-            if (state.lastAlpha > 0f) {
-                state.demotedForContention = true
-                hide(bar, state, setType, setMode, setViewMode)
-                scheduleRestoreCheck()
-            }
-            return
-        }
         if (!enabled()) {
             restore(bar, state, getPrimary, setPrimary)
             hide(bar, state, setType, setMode, setViewMode)
@@ -393,6 +422,17 @@ open class TopBarGradientHook : BaseHook() {
                 state.lastAlpha = 0f
             }
             scheduleRelease(bar, state, setType, setMode, setViewMode)
+            return
+        }
+        // 双栏/三栏共进程时只允许一个活跃 blur 节点；第一个真正有 alpha 的栏成为 owner，
+        // 其它栏立即让位（下一帧释放，避免在 RenderThread 提交期间销毁节点）。
+        if (!claimOwner(bar)) {
+            state.demotedForContention = true
+            bar.post {
+                if (state.demotedForContention && bar.isAttachedToWindow) {
+                    runCatching { hide(bar, state, setType, setMode, setViewMode) }
+                }
+            }
             return
         }
         cancelRelease(bar, state)
@@ -438,9 +478,12 @@ open class TopBarGradientHook : BaseHook() {
     private fun hide(bar: ViewGroup, state: State, setType: Method, setMode: Method, setViewMode: Method) {
         cancelRelease(bar, state)
         if (state.lastRadius >= 0f) {
-            setType.invoke(state.blur, 0)
-            setViewMode.invoke(state.blur, 0)
-            setMode.invoke(state.blur, 0)
+            // 转场/窗口销毁时厂商方法可能抛异常；让位失败不应让目标进程崩溃。
+            runCatching {
+                setType.invoke(state.blur, 0)
+                setViewMode.invoke(state.blur, 0)
+                setMode.invoke(state.blur, 0)
+            }
             state.lastRadius = -1f
             state.lastHeight = -1
         }
@@ -515,6 +558,14 @@ open class TopBarGradientHook : BaseHook() {
             state.warmedUp = false
             return
         }
+        // 双栏/三栏启动时只允许 owner 预热，否则多个 blur 节点会在首帧同时创建，
+        // Adreno Vulkan 驱动会在 RenderThread 提交阶段崩溃。
+        if (!claimOwner(bar)) {
+            state.warmedUp = true
+            state.demotedForContention = true
+            state.blur.visibility = View.INVISIBLE
+            return
+        }
         val height = bar.height
         if (height <= 0 || state.lastRadius >= 0f) {
             state.warmedUp = false
@@ -551,12 +602,26 @@ open class TopBarGradientHook : BaseHook() {
         if (state.blur.visibility != View.INVISIBLE) state.blur.visibility = View.INVISIBLE
     }
 
+    /** 申领唯一 blur owner；owner 已失效或就是自己时成功。 */
+    @Synchronized
+    private fun claimOwner(bar: ViewGroup): Boolean {
+        val owner = ownerRef?.get()
+        if (owner == null || owner === bar || !owner.isAttachedToWindow) {
+            ownerRef = WeakReference(bar)
+            return true
+        }
+        return false
+    }
+
+    /** 滚动会话开始时强制把 owner 转给当前栏。 */
+    @Synchronized
+    private fun forceOwner(bar: ViewGroup) {
+        ownerRef = WeakReference(bar)
+    }
+
     /**
-     * 平板双栏（左右两个窗口共进程）中，把其它仍可见（alpha > 0）的模糊节点释放。
-     *
-     * 实测「冻结帧」共存（让位侧保持可见、停止更新）同样会卡死：系统 blur 节点只要
-     * 可见/激活就持续参与渲染，没有可暂停的档位。因此任意时刻只保留一个活跃节点，
-     * 对侧静止后由恢复定时器自动带回来。
+     * 释放非 owner 的其它模糊节点，保证同一进程任意时刻只有一个活跃 blur 节点。
+     * 切换栏时由 [forceOwner] 转移 owner，不在滚动结束恢复旧节点。
      */
     private fun demoteOtherActiveBars(
         current: ViewGroup,
@@ -570,10 +635,15 @@ open class TopBarGradientHook : BaseHook() {
             val other = entry.value
             if (other.lastAlpha <= 0f) continue
             other.demotedForContention = true
-            runCatching { hide(entry.key, other, setType, setMode, setViewMode) }
-            HookHelper.log("TopBarGradient: demote other active blur bar (hash=${entry.key.hashCode()})")
+            val host = entry.key
+            // 不要在 onDraw 调用栈里同步切换厂商 blur 模式：RenderThread 可能仍在
+            // 提交上一帧，Vulkan 驱动会把已释放的 blur 节点当作有效资源（SIGSEGV）。
+            host.post {
+                if (!other.demotedForContention || !host.isAttachedToWindow) return@post
+                runCatching { hide(host, other, setType, setMode, setViewMode) }
+                HookHelper.log("TopBarGradient: demote other active blur bar (hash=${host.hashCode()})")
+            }
         }
-        scheduleRestoreCheck()
     }
 
     /** 其它窗口是否仍在持续绘制（近期有绘制且模糊可见）。 */
@@ -713,6 +783,9 @@ open class TopBarGradientHook : BaseHook() {
 
         /** 跟随遮罩的透明度量化级数（视觉连续，减少无意义的合成更新）。 */
         const val ALPHA_STEPS = 64f
+
+        /** 导航转场 ghost 快照的容器 id；其中的 ActionBar 不参与 blur。 */
+        val GHOST_VIEW_IDS = setOf("ghost_nav_view", "ghost_clip_view", "ghost_fading_mask_view")
 
         /** 判定"另一侧窗口仍在持续绘制"的时间窗。 */
         const val ACTIVE_DRAW_MS = 800L

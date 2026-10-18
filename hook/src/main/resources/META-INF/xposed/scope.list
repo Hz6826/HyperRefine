@@ -13,6 +13,7 @@ com.android.settings
 com.android.mms
 com.android.contacts
 com.android.phone
+com.xiaomi.phone
 com.android.deskclock
 com.android.fileexplorer
 com.android.providers.downloads.ui
