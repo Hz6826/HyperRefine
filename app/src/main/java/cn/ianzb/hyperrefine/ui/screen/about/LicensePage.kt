@@ -153,6 +153,12 @@ private val licenseSections: List<LicenseSection> = listOf(
         titleRes = R.string.licenses_section_refs,
         libraries = listOf(
             LibraryInfo(
+                "SukiSU-Ultra",
+                "-",
+                "GPL-3.0",
+                "https://github.com/SukiSU-Ultra/SukiSU-Ultra",
+            ),
+            LibraryInfo(
                 "Pengeek（米客）",
                 "OS4-26.10.13-test",
                 "GPL-3.0，通知与状态栏功能思路参考（独立实现，未复用其代码或资源）",

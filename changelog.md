@@ -16,6 +16,7 @@
 ### 变更
 
 - **基于脚手架更新至 MiuixGuiTemplate 0.5.5**（`about_based_on` / 文档同步）：并入英文文案与专有名词规范、公开仓库隐私保护规范、逆向产物存放与构建日志约定。
+- **基于脚手架更新至 MiuixGuiTemplate 0.6.0**（`about_based_on` 同步）：液态玻璃底栏按 SukiSU-Ultra 重做——按压即定位、内容宽度自适应（28dp 边距居中、标签至少 76dp）、折射采样 padding 修正圆角硬边、AGSL 交互高光与重力高光量化。
 
 ### 修复
 
