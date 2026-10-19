@@ -71,6 +71,8 @@ object AppVolumePanel {
     private var insetsProxy: Any? = null
     private var preDrawContainer: View? = null
     private var preDrawListener: ViewTreeObserver.OnPreDrawListener? = null
+    private var dialogAttachListener: View.OnAttachStateChangeListener? = null
+    private var dialogMonitor: Runnable? = null
     private var windowAttrsOriginal: Pair<Float, Int>? = null
     private val officialColumns = mutableListOf<OfficialVolumeColumnFactory.Column>()
 
@@ -182,6 +184,12 @@ object AppVolumePanel {
         }
         preDrawListener = null
         preDrawContainer = null
+        dialogAttachListener?.let { listener ->
+            runCatching { dialogRef?.removeOnAttachStateChangeListener(listener) }
+        }
+        dialogAttachListener = null
+        dialogMonitor?.let { runnable -> runCatching { dialogRef?.removeCallbacks(runnable) } }
+        dialogMonitor = null
         runCatching { (currentHost.parent as? ViewGroup)?.removeView(currentHost) }
         restoreDialog()
     }
@@ -204,6 +212,8 @@ object AppVolumePanel {
     ) {
         hide()
         closing = false
+        // 侧边音量条已经隐藏时不要再创建窗口；否则会生成一个没有锚点的面板。
+        if (!dialog.isAttachedToWindow || !dialog.isShown) return
         val density = context.resources.displayMetrics.density
         // 正在播放的应用：与系统官方（音质音效 `playervolume.f.a`）逐条对齐的判定（共享 UID 感知），
         // 读后台探测快照；快照里没有应用时先请一次后台探测（主线程不等待音频 IPC，
@@ -319,6 +329,28 @@ object AppVolumePanel {
         host = container
         card = panel
         dialogRef = dialog
+        // 侧边音量条窗口可能只是隐藏而不是 detach；监听 dialog detach 作为兜底。
+        val detachListener = object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {}
+            override fun onViewDetachedFromWindow(v: View) {
+                if (host === container) cleanup(container)
+            }
+        }
+        dialogAttachListener = detachListener
+        dialog.addOnAttachStateChangeListener(detachListener)
+        // 音量条窗口可能只做 visibility 隐藏而不 detach；逐帧兜底检查，隐藏后立即清理。
+        val monitor = object : Runnable {
+            override fun run() {
+                if (host !== container) return
+                if (!dialog.isAttachedToWindow || !dialog.isShown) {
+                    cleanup(container)
+                    return
+                }
+                dialog.postOnAnimation(this)
+            }
+        }
+        dialogMonitor = monitor
+        dialog.postOnAnimation(monitor)
         root.addView(container)
 
         // 侧边音量条保持显示；仅接管窗口触摸区域，使位于其左侧的面板可正常拖动。
@@ -330,6 +362,12 @@ object AppVolumePanel {
         var started = false
         val listener = object : ViewTreeObserver.OnPreDrawListener {
             override fun onPreDraw(): Boolean {
+                // 侧边音量条已被隐藏 / detach 时立即清理，避免 dialog 坐标为 0 后面板被
+                // positionLeftOfDialog 推到屏幕最左侧并残留。
+                if (!dialog.isAttachedToWindow || !dialog.isShown) {
+                    if (host === container) cleanup(container)
+                    return true
+                }
                 // 淡出期间暂停跟随（否则侧边条一变就瞬移），交给整体平移 + 淡出。
                 if (!closing) {
                     if (heightAuto) {
@@ -368,6 +406,8 @@ object AppVolumePanel {
     private fun positionLeftOfDialog(container: View, panel: View, dialog: View, density: Float) {
         runCatching {
             if (container.width <= 0 || panel.width <= 0) return
+            // dialog 隐藏 / 尚未布局时坐标为 0，绝不能据此计算 margin，否则面板会被推到最左侧。
+            if (!dialog.isShown || !dialog.isAttachedToWindow || dialog.width <= 0) return
             val dialogLoc = IntArray(2)
             val containerLoc = IntArray(2)
             dialog.getLocationOnScreen(dialogLoc)
@@ -375,6 +415,7 @@ object AppVolumePanel {
             val containerRight = containerLoc[0] + container.width
             val gap = (12 * density).toInt()
             val endMargin = (containerRight - dialogLoc[0] + gap).coerceAtLeast(gap)
+            if (endMargin > container.width) return
             val lp = panel.layoutParams as? FrameLayout.LayoutParams ?: return
             if (lp.marginEnd != endMargin) {
                 lp.marginEnd = endMargin

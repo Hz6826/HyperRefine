@@ -722,6 +722,8 @@ class AppVolumeEntryHook : BaseHook() {
             }
         }
         if (lastVisible[entry] != true) return
+        // 两次延迟重试之间侧边条可能已经收回，避免在隐藏的 dialog 上创建面板。
+        if (!dialog.isAttachedToWindow || !dialog.isShown) return
         runCatching { AppVolumePanel.show(root, dialog, entry.context, pluginClassLoader, entry) }
             .onFailure { HookHelper.log("$tag: auto show panel failed", it) }
     }
