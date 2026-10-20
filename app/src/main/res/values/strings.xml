@@ -312,6 +312,11 @@
  <string name="sr_animation_radius_summary">超级小爱识屏的缩小动画从屏幕自带圆角开始过渡，消除动画起始时的直角</string>
  <string name="section_voice_assist">超级小爱</string>
  <string name="section_screen_recognition">识屏</string>
+ <string name="section_voice_assist_wakeup">长按小白条</string>
+ <string name="voice_assist_long_press_intent_ball">长按小白条打开灵感球</string>
+ <string name="voice_assist_long_press_intent_ball_summary">开启后，长按底部手势条会打开超级小爱灵感球，替代原有的长按识屏；关闭则保持系统识屏</string>
+ <string name="voice_assist_double_click_chat_full_effect">双击小白条聊天满血光效</string>
+ <string name="voice_assist_double_click_chat_full_effect_summary">双击底部手势条打开超级小爱聊天时，使用与长按电源键相同的满血波纹光效</string>
  <string name="feature_assistant">负一屏</string>
  <string name="assistant_section_anim">过渡动画</string>
  <string name="assistant_section_server">系统服务</string>

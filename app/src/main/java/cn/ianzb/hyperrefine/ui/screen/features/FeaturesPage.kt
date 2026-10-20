@@ -29,6 +29,7 @@ import cn.ianzb.hyperrefine.hook.systemui.radius.CcRadiusKeys
 import cn.ianzb.hyperrefine.hook.systemui.SplitScreenKeys
 import cn.ianzb.hyperrefine.hook.systemui.wallpaper.WallpaperDimKeys
 import cn.ianzb.hyperrefine.hook.voiceassist.ScreenRecognitionRadiusHook
+import cn.ianzb.hyperrefine.hook.voiceassist.VoiceAssistKeys
 import cn.ianzb.hyperrefine.hook.weather.WeatherKeys
 import cn.ianzb.hyperrefine.prefs.OptionSpec
 import cn.ianzb.hyperrefine.prefs.OptionType
@@ -310,6 +311,8 @@ const val KEY_WALLPAPER_DIM = WallpaperDimKeys.ENABLED
 const val KEY_WALLPAPER_DIM_AMOUNT = WallpaperDimKeys.AMOUNT
 const val KEY_CLIPBOARD_SYNC_BOOST = ConnectKeys.CLIPBOARD_SYNC_BOOST
 const val KEY_SR_ANIMATION_RADIUS = ScreenRecognitionRadiusHook.KEY
+const val KEY_LONG_PRESS_HOME_INTENT_BALL = VoiceAssistKeys.LONG_PRESS_HOME_INTENT_BALL
+const val KEY_DOUBLE_CLICK_CHAT_FULL_EFFECT = VoiceAssistKeys.DOUBLE_CLICK_CHAT_FULL_EFFECT
 const val KEY_VOICE_ASSIST = "feature_voice_assist"
 const val KEY_ASSISTANT = "feature_assistant"
 const val KEY_CC_RADIUS = "feature_cc_radius"
@@ -865,6 +868,24 @@ internal fun featureSpecs(): List<OptionSpec> {
             titleRes = R.string.sr_animation_radius,
             summaryRes = R.string.sr_animation_radius_summary,
             defaultBoolean = false,
+            targetPackages = listOf("com.miui.voiceassist"),
+            showStatus = true,
+        ),
+        OptionSpec(
+            key = KEY_LONG_PRESS_HOME_INTENT_BALL,
+            type = OptionType.SWITCH,
+            titleRes = R.string.voice_assist_long_press_intent_ball,
+            summaryRes = R.string.voice_assist_long_press_intent_ball_summary,
+            defaultBoolean = false,
+            targetPackages = listOf("com.miui.voiceassist"),
+            showStatus = true,
+        ),
+        OptionSpec(
+            key = KEY_DOUBLE_CLICK_CHAT_FULL_EFFECT,
+            type = OptionType.SWITCH,
+            titleRes = R.string.voice_assist_double_click_chat_full_effect,
+            summaryRes = R.string.voice_assist_double_click_chat_full_effect_summary,
+            defaultBoolean = true,
             targetPackages = listOf("com.miui.voiceassist"),
             showStatus = true,
         ),

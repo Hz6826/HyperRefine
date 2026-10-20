@@ -4,6 +4,13 @@
 
 > 未发布
 
+### 新增
+
+- **超级小爱 · 长按小白条打开灵感球**（目标 `com.miui.voiceassist`）：新增「长按小白条」设置项。开启后，长按底部手势导航条会打开超级小爱灵感球，并跳过官方默认的长按识屏；关闭则保持系统原本的长按识屏。实现不复制灵感球窗口，直接调用官方 `IntentionalBallManager.operate("home_intentional_ball", session)`，复用其悬浮球、录音与识屏链路。官方窗口首帧会向桌面 `com.miui.home.gesture.enableState` 查询 `xiaoai_ball_ready` 坐标；长按没有侧滑手势会话时该查询返回 null，窗口会立刻 `releaseScene`，所以同时补充长按触发点（底部中间）坐标，让官方 `onEdgeEnterReady` 从触发位置启动 ASR。
+- **超级小爱 · 双击小白条聊天满血光效**（目标 `com.miui.voiceassist`，适配 8.3.30）：双击底部手势条打开聊天时，复用官方电源键长按的 `PowerWake` 全屏光效（`ms1.j.c` → `os1.k#r()` / `os1.p#h()`），效果与长按电源键进入聊天时一致；默认开启，可在「超级小爱 → 长按小白条」中关闭。
+
+### 修复
+
 - **多应用音量 · 面板残留屏幕最左侧**（目标 `com.android.systemui`）：侧边音量条隐藏时通常只改 dialog 可见性而不 detach，旧面板容器仍挂在 DecorView 上；其逐帧定位读到隐藏 dialog 的 `(0,0)`，把面板 `marginEnd` 推到屏幕外，看起来像在左侧出现一个错位面板。现在面板显示期间逐帧检查 dialog 的 attach / `isShown`，隐藏即清理，并在 dialog 隐藏、未布局或宽度为 0 时拒绝重新计算位置；自动展开也增加 dialog 可见性检查，避免在已收回的音量条上创建面板。
 
 ## 1.13.0

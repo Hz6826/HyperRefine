@@ -36,6 +36,13 @@ class VoiceAssistActivity : BaseSubPageActivity() {
                 featureSpec(KEY_SR_ANIMATION_RADIUS),
             ),
         )
+        val wakeupSection = HookSection(
+            titleRes = R.string.section_voice_assist_wakeup,
+            specs = listOf(
+                featureSpec(KEY_LONG_PRESS_HOME_INTENT_BALL),
+                featureSpec(KEY_DOUBLE_CLICK_CHAT_FULL_EFFECT),
+            ),
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -51,9 +58,11 @@ class VoiceAssistActivity : BaseSubPageActivity() {
                 ),
             contentPadding = contentPadding,
         ) {
-            item {
-                HookSectionCard(section) {
-                    section.specs.forEach { HookOptionView(it) }
+            listOf(section, wakeupSection).forEach { sec ->
+                item {
+                    HookSectionCard(sec) {
+                        sec.specs.forEach { HookOptionView(it) }
+                    }
                 }
             }
         }

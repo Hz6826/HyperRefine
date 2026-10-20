@@ -16,5 +16,9 @@ class VoiceAssistLoad : BaseLoad() {
             ScreenRecognitionRadiusHook(),
             HookPrefs.getBoolean(ScreenRecognitionRadiusHook.KEY, false),
         )
+        // 始终安装，回调内实时读取开关；这样用户切换设置后只需重启超级小爱进程，
+        // 不依赖「启动时开关已经为开」。
+        initHook(LongPressHomeIntentBallHook(), true)
+        initHook(DoubleClickChatFullEffectHook(), true)
     }
 }

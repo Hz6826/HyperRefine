@@ -312,6 +312,11 @@
  <string name="sr_animation_radius_summary">Start the Xiaomi Hyper XiaoAi screen-recognition shrink animation with the screen’s rounded corners to eliminate square corners at the start</string>
  <string name="section_voice_assist">Xiaomi Hyper XiaoAi</string>
  <string name="section_screen_recognition">Screen recognition</string>
+ <string name="section_voice_assist_wakeup">Long-press gesture bar</string>
+ <string name="voice_assist_long_press_intent_ball">Open the inspiration ball on long press</string>
+ <string name="voice_assist_double_click_chat_full_effect">Full chat light effect on double-click</string>
+ <string name="voice_assist_double_click_chat_full_effect_summary">Use the same full ripple light effect as long-pressing the power key when double-clicking the bottom gesture bar to open Xiaomi Hyper XiaoAI chat</string>
+ <string name="voice_assist_long_press_intent_ball_summary">When enabled, long-pressing the bottom gesture bar opens the Xiaomi Hyper XiaoAi inspiration ball instead of screen recognition; turn off to keep the system screen recognition</string>
  <string name="feature_assistant">App vault</string>
  <string name="assistant_section_anim">Transitions</string>
  <string name="assistant_section_server">System service</string>
