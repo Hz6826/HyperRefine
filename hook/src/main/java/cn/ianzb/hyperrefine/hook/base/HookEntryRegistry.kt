@@ -12,6 +12,7 @@ import cn.ianzb.hyperrefine.hook.passkey.PasskeyLoad
 import cn.ianzb.hyperrefine.hook.packageinstaller.PackageInstallerLoad
 import cn.ianzb.hyperrefine.hook.securitycenter.SecurityCenterLoad
 import cn.ianzb.hyperrefine.hook.systemui.SystemUiLoad
+import cn.ianzb.hyperrefine.hook.voiceassist.VoiceAssistImeLoad
 import cn.ianzb.hyperrefine.hook.voiceassist.VoiceAssistLoad
 import cn.ianzb.hyperrefine.hook.weather.WeatherLoad
 
@@ -40,6 +41,7 @@ object HookEntryRegistry {
         PasskeyLoad(),
         BrowserLoad(),
         VoiceAssistLoad(),
+        VoiceAssistImeLoad(),
     )
 
     fun loadsFor(packageName: String): List<BaseLoad> =

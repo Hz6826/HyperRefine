@@ -20,7 +20,7 @@ import cn.ianzb.hyperrefine.ui.util.pageScrollModifiers
 /**
  * 「应用美化」二级页。
  *
- * 收纳针对各系统应用（MIUIX）的外观类功能；目前包含「渐变模糊」。
+ * 收纳针对各系统应用（MIUIX）的外观类功能。
  */
 class AppBeautifyActivity : BaseSubPageActivity() {
 
@@ -36,7 +36,7 @@ class AppBeautifyActivity : BaseSubPageActivity() {
     ) {
         val context = LocalContext.current
         val scrollBehavior = LocalSubPageScrollBehavior.current
-        val section = HookSection(
+        val blurSection = HookSection(
             titleRes = R.string.section_app_blur,
             specs = listOf(
                 featureSpec(KEY_TOP_BAR_BLUR),
@@ -58,8 +58,8 @@ class AppBeautifyActivity : BaseSubPageActivity() {
             contentPadding = contentPadding,
         ) {
             item {
-                HookSectionCard(section) {
-                    section.specs.forEach { spec ->
+                HookSectionCard(blurSection) {
+                    blurSection.specs.forEach { spec ->
                         HookOptionView(spec = spec) {
                             context.startActivity(Intent(context, TopBarBlurActivity::class.java))
                         }

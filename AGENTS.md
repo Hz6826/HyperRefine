@@ -13,6 +13,7 @@ HyperRefine 是基于 MiuixGuiTemplate 的 LSPosed 模块（libxposed API 102 + 
 | 任务 | 必读 |
 |---|---|
 | 新增 / 修改 Hook、DexKit、配置项、UI 组件、接入步骤 | `docs/API.md`（§1 Hook 封装、§2 DexKit、§3 配置、§5 UI、§6 二级页、§7 接入） |
+| 输入法 / 窗口材质 / 圆角 / 模糊类 Hook | `docs/API.md` §1.14、`docs/WORKFLOW.md` §1.8 |
 | 包名 / 图标 / 链接 / 模块元数据等二次开发全量清单 | `docs/CUSTOMIZE.md` |
 | 真机 adb 授权、逆向产物存放、第三方复用合规 | `docs/WORKFLOW.md`（红线，必读） |
 | Rust 原生 Hook | `docs/NATIVE_HOOK.md` |
@@ -30,6 +31,7 @@ HyperRefine 是基于 MiuixGuiTemplate 的 LSPosed 模块（libxposed API 102 + 
 7. **二级页面**：继承 `BaseSubPageActivity` + 在 `AndroidManifest.xml` 注册 + 父页 `HookSubPage(..., subPages = ...)` 登记（子页自身不放搜索栏；多级嵌套逐层登记，搜索可直达）。
 8. **Hook 生效状态**：`OptionSpec.showStatus = true` 后由目标进程回报（`HookStatusReporter` → `HookStatusStore`）；开关变更后必须重启目标进程才会刷新为「已生效」。
 9. **重启应用**：顶栏统一 `QuickActionsAction` / `QuickActionDialog`；`com.android.systemui` 走 `AppRestarter.restartSystemUi()`（不重启系统），`system` / `android` / `system_server` 二次确认后 `reboot`。
+10. **视觉类 Hook 复用官方状态**：输入法 / 窗口材质 / 圆角 / 模糊优先修改官方状态谓词、允许表与官方渲染入口，禁止自建悬浮窗、`RenderEffect` 或输入监听补效果；详见 `docs/API.md` §1.14。混淆类 / 字段解析失败必须 fail-closed。
 
 ## 常规任务路径
 
@@ -57,5 +59,6 @@ HyperRefine 是基于 MiuixGuiTemplate 的 LSPosed 模块（libxposed API 102 + 
 - [ ] `OptionSpec.key` 与 `BaseHook.key` 一致；`HookPrefs.GROUP` 与 `PrefsStore.REMOTE_GROUP` 一致
 - [ ] `scope.list` 覆盖全部 `BaseLoad.targetPackages`
 - [ ] 依赖 / 设备不满足时灰显而非隐藏；显隐动画使用 `MiuixExpandSpec`
+- [ ] 视觉 / 输入法类 Hook 修改的是官方状态谓词，未新增悬浮窗 / `RenderEffect` / 输入注入
 - [ ] `.\gradlew.bat :hook:compileDebugKotlin :app:assembleDebug --console=plain` 构建通过
 - [ ] 真机验证 Hook 生效；`changelog.md` / 许可页按需更新

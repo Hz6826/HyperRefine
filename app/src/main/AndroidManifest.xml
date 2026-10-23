@@ -88,6 +88,10 @@
             android:exported="false"
             android:theme="@style/Theme.HyperRefine" />
         <activity
+            android:name=".ui.screen.features.VoiceAssistImeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HyperRefine" />
+        <activity
             android:name=".ui.screen.features.AssistantActivity"
             android:exported="false"
             android:theme="@style/Theme.HyperRefine" />

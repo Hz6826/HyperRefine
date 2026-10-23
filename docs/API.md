@@ -324,6 +324,54 @@ hook 代码内需要按设备分支时，直接读 `DeviceContext.current.type`�
 - 各功能为独立 `BaseHook`：反射解析失败即抛错、不安装、不回报状态（fail-closed 失败隔离）。
 - 配置键统一定义在 `ConnectKeys`（与 App 侧 `OptionSpec.key` 共用）。
 
+### 1.14 输入法 / 窗口材质类 Hook 规范
+
+适用于自带窗口渲染器的输入法（如 `com.xiaomi.type`）、系统界面材质、圆角与模糊类需求。
+首要原则：**复用官方状态谓词和官方绘制入口，不复制渲染层**。自己往 Window 上叠一个
+`View`、`RenderEffect` 或悬浮窗，通常会与官方层级、输入法 Insets、窗口动画互相打架。
+
+以超级小爱输入法 `0.2.1246` 的 `jb.f0`（HyperMaterialHelper）为例：
+
+| 成员 | 含义 |
+|---|---|
+| `w` | 当前输入框所属包名 |
+| `x` | 包名 → 材质版本允许表 |
+| `y` | 包名 → 材质版本黑名单 |
+| `z` | 当前包名是否命中圆角名单；`g()` 读取，`e0` / `u1` 据此决定上边缘圆角 |
+| `f` | 当前是否已启用材质；`h()` 读取 |
+| `v` | 平台能力位（系统模糊开关是否可用） |
+
+`k()` 会在 `onStartInput` / `onStartInputView` / `onWindowShown` 等时机按当前包名重算上述状态；
+`o9.e.a("hyper_material_enabled", true)` 是输入法设置里的「高级材质」总开关。官方用包名允许表
+决定哪些应用启用，因此“只在部分官方应用生效”不是绘制差异，而是**状态谓词差异**。
+
+正确接法（`VoiceAssistImeMaterialHook` 即此模式）：
+
+0. 优先 hook 两个布尔谓词：`h()`（是否启用材质）与 `g()`（是否命中圆角名单）。它们直接决定
+   官方是否创建透明材质层、`e0` / `u1` 是否取顶部圆角；字段表只用于扩展允许列表，字段解析
+   失败时仍保留这两条谓词 Hook。
+1. `k()` **before**：把 `w` 以版本 `1` 写入 `x`，从 `y` 删除；让官方
+   `k()` 自己完成材质状态、透明层、模糊与圆角的全部计算。`v` 同时反映系统“背景模糊”
+   总开关，**不要强行置 true**，否则系统未开模糊时会留下没有真实模糊的透明层。
+2. 只对 `hyper_material_enabled` 这一个 key 拦截 `o9.e.a(String, Boolean)`，让模块开关可以覆盖
+   输入法设置里的总开关；不要替换整个偏好读取方法。
+3. `k()` **after**：把 `z` / `f` 置为 `true`，并对官方材质 `View`（`j`）调用
+   `invalidateOutline()`；OutlineProvider 的圆角只在 invalidate 后重新取值。
+4. `g()` 只影响形状，不能替代允许表；如果只 hook `g()`，材质层可能仍不会创建。
+5. **禁止**用 `InputMonitor`、`InputManager.injectInputEvent`、透明悬浮窗或自建 `RenderEffect`
+   去“补”输入法效果：既拿不到已经开始的输入手势，也会造成输入分发超时 / ANR。
+
+生命周期与安全要求：
+
+- `invalidateOutline()` 必须回主线程（非主线程用 `View.post`）。
+- 只改当前 helper 实例的字段，不修改系统 Settings、不写目标应用偏好。
+- 混淆类名 / 字段名随版本变化，必须 `versionGate` + `findClassIfExists` + 字段解析失败即
+  fail-closed（只记录日志，不向输入法进程抛异常）；定位信息只落 `reverse_report/<包名>/`。
+- 开关默认关闭；关闭时完全不干预官方包名白名单。Hook 可以始终安装并在回调里实时读
+  `HookPrefs`（后续切换免重启生效；模块首次安装 / 更新后仍需重启一次目标进程），此时不要给
+  `OptionSpec.showStatus = true`，否则关闭状态也会显示「已生效」；若按启动开关决定是否安装，
+  则必须在 UI 说明需要重启目标进程。
+
 ---
 
 ## 2. DexKit 缓存（`:hook`）
