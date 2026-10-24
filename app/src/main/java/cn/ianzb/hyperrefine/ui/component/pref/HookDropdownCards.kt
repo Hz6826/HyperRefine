@@ -8,6 +8,7 @@ import cn.ianzb.hyperrefine.prefs.ConfigState
 import cn.ianzb.hyperrefine.prefs.OptionSpec
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
 
 /**
@@ -39,6 +40,32 @@ fun HookDropdownCard(
 /**
  * 单选卡片：右侧 checkbox 表示选中项（单选语义）。
  */
+/**
+ * 覆盖层下拉卡片：不创建独立 Window，避免 SystemUI 把隐藏的弹窗当成顶层窗口采样。
+ */
+@Composable
+fun HookOverlayDropdownCard(
+    spec: OptionSpec,
+    modifier: Modifier = Modifier,
+) {
+    val enabled = rememberOptionEnabled(spec)
+    val value = ConfigState.string(spec.key, spec.defaultString)
+    val items = spec.entryResIds.map { stringResource(it) }
+    val selectedIndex = spec.entryValues.indexOf(value).takeIf { it >= 0 } ?: 0
+    OverlayDropdownPreference(
+        items = items,
+        selectedIndex = selectedIndex,
+        title = stringResource(spec.titleRes),
+        summary = spec.summaryRes.takeIf { it != 0 }?.let { stringResource(it) },
+        enabled = enabled,
+        modifier = modifier,
+        onSelectedIndexChange = { index ->
+            ConfigState.set(spec.key, spec.entryValues.getOrElse(index) { spec.defaultString })
+            if (index != defaultIndex(spec)) ensureScopeFor(spec)
+        },
+    )
+}
+
 @Composable
 fun HookRadioCard(
     spec: OptionSpec,

@@ -14,12 +14,15 @@ import cn.ianzb.hyperrefine.hook.systemui.wallpaper.WallpaperDimKeys
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.HideWifiActivityHook
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.DualSimSignalHook
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.MobileIndicatorVisibilityHook
+import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconHook
+import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconKeys
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarKeys
 
 /**
  * 系统界面（com.android.systemui）目标 Load：
  * 控制中心音量条 / 控制中心亮度条 / 侧边音量条的百分比数值显示，
  * 融合设备中心隐藏末尾「…」省略卡片、缩小设备点击判定范围，
+ * 状态栏图标自定义（显示模式 / 状态条件 / 排序 / 布局），
  * 以及深色模式自动压暗壁纸。
  */
 class SystemUiLoad : BaseLoad() {
@@ -30,6 +33,10 @@ class SystemUiLoad : BaseLoad() {
         initHook(HideWifiActivityHook(), HookPrefs.getBoolean(StatusBarKeys.WIFI_ACTIVITY))
         initHook(MobileIndicatorVisibilityHook(), HookPrefs.getBoolean(StatusBarKeys.HIDE_TYPE))
         initHook(DualSimSignalHook(), HookPrefs.getBoolean(StatusBarKeys.DUAL_ROWS))
+        initHook(
+            StatusBarIconHook(),
+            HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false),
+        )
         initHook(CcVolumePercentHook(), HookPrefs.getBoolean(CcVolumePercentHook.KEY, false))
         initHook(CcBrightnessPercentHook(), HookPrefs.getBoolean(CcBrightnessPercentHook.KEY, false))
         initHook(SideVolumePercentHook(), HookPrefs.getBoolean(SideVolumePercentHook.KEY, false))

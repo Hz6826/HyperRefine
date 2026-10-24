@@ -174,6 +174,8 @@ HyperRefine 基于个人 Android 模块开发脚手架 MiuixGuiTemplate 创建�
 
 状态栏的 Wi-Fi 活动指示器隐藏、移动网络类型隐藏与双排堆叠信号同样独立实现，参考来源统一登记在应用内致谢页；功能范围与验证见 [状态栏功能说明](docs/STATUSBAR_PORT.md)。
 
+状态栏图标自定义的预览资源（`ic_stat_sys_*`）复用自 GPL-3.0 的 [XiaomiHelper / HyperHelper](https://github.com/HowieHChen/XiaomiHelper)，原始版权与许可见 [资源说明](docs/THIRD_PARTY_ICONS.md)；功能与交互为独立实现。
+
 <br>
 
 # 赞助支持

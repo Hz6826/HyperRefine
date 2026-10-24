@@ -29,12 +29,12 @@ internal fun statusBarFeatureSpecs(): List<OptionSpec> {
         OptionSpec(key = Keys.DUAL_ROWS, type = OptionType.SWITCH, titleRes = R.string.sb_dual_rows,
             summaryRes = R.string.sb_dual_rows_summary, defaultBoolean = false,
             targetPackages = listOf(Keys.TARGET), showStatus = true),
-        slider(Keys.DUAL_SCALE, R.string.sb_icon_scale, 1f, 0.6f, 1.6f, R.string.sb_unit_scale, 0.1f),
+        slider(Keys.DUAL_SCALE, R.string.sb_icon_scale, 1f, 0.5f, 2f, R.string.sb_unit_scale, 0.1f),
+        // 垂直偏移统一使用“移动网络”二级页的布局项，不再在双排区重复一个滑条。
         slider(Keys.DUAL_LEFT_GAP, R.string.sb_left_gap, 0f, 0f, 8f, R.string.sb_unit_dp),
         slider(Keys.DUAL_RIGHT_GAP, R.string.sb_right_gap, 0f, 0f, 8f, R.string.sb_unit_dp),
-        slider(Keys.DUAL_OFFSET, R.string.sb_vertical_offset, 0f, -4f, 4f, R.string.sb_unit_dp),
     )
 }
 
-internal fun statusBarSpecs(specs: List<OptionSpec>) =
-    Keys.ALL.map { key -> specs.first { it.key == key } }
+internal fun statusBarSpecs(specs: List<OptionSpec>): List<OptionSpec> =
+    Keys.ALL.mapNotNull { key -> specs.firstOrNull { it.key == key } }

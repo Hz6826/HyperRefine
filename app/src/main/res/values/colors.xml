@@ -10,4 +10,6 @@
 	<color name="ic_launcher_background">#FFFFFFFF</color>
 	<color name="ic_launcher_foreground">#FF3482FF</color>
 	<color name="window_background">#FFF7F7F7</color>
+	<color name="ic_stat_sys_tint_fg">#393939</color>
+	<color name="ic_stat_sys_tint_bg">#E6E6E6</color>
 </resources>

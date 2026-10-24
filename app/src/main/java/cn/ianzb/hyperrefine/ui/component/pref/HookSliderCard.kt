@@ -55,8 +55,9 @@ fun HookSliderCard(
     Column(modifier = modifier) {
         if (masterKey != null) {
             SwitchPreference(
-                title = stringResource(spec.titleRes),
-                summary = spec.summaryRes.takeIf { it != 0 }?.let { stringResource(it) },
+                title = stringResource(spec.masterTitleRes.takeIf { it != 0 } ?: spec.titleRes),
+                summary = (spec.masterSummaryRes.takeIf { it != 0 } ?: spec.summaryRes)
+                    .takeIf { it != 0 }?.let { stringResource(it) },
                 checked = masterEnabled,
                 onCheckedChange = {
                     ConfigState.set(masterKey, it)

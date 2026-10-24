@@ -38,10 +38,15 @@ fun HookTextCard(
     val value = ConfigState.string(spec.key, spec.defaultString)
     var showDialog by remember { mutableStateOf(false) }
     val notSet = stringResource(R.string.hook_text_not_set)
+    val emptyHint = when {
+        spec.summaryText.isNotEmpty() -> spec.summaryText
+        spec.summaryRes != 0 -> stringResource(spec.summaryRes)
+        else -> notSet
+    }
 
     ArrowPreference(
         title = stringResource(spec.titleRes),
-        summary = value.ifEmpty { notSet },
+        summary = value.ifEmpty { emptyHint },
         onClick = { if (enabled) showDialog = true },
         enabled = enabled,
         modifier = modifier,
@@ -57,75 +62,88 @@ private fun TextValueDialog(
     spec: OptionSpec,
     onDismiss: () -> Unit,
 ) {
-    val current = ConfigState.string(spec.key, spec.defaultString)
-    var input by remember { mutableStateOf(current) }
-
     WindowDialog(
         show = true,
         title = stringResource(spec.titleRes),
         summary = stringResource(R.string.hook_text_dialog_summary),
         onDismissRequest = onDismiss,
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            val notSet = stringResource(R.string.hook_text_not_set)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                MiuixText(
-                    text = stringResource(
-                        R.string.hook_text_current,
-                        current.ifEmpty { notSet },
-                    ),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    style = MiuixTheme.textStyles.footnote2,
-                )
-                MiuixText(
-                    text = stringResource(
-                        R.string.hook_text_default,
-                        spec.defaultString.ifEmpty { notSet },
-                    ),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    style = MiuixTheme.textStyles.footnote2,
-                )
-            }
-            Spacer(Modifier.padding(top = 8.dp))
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                label = stringResource(R.string.hook_text_placeholder),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+        TextValueEditor(
+            spec = spec,
+            onDismiss = onDismiss,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun TextValueEditor(
+    spec: OptionSpec,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val current = ConfigState.string(spec.key, spec.defaultString)
+    var input by remember { mutableStateOf(current) }
+
+    Column(modifier = modifier) {
+        val notSet = stringResource(R.string.hook_text_not_set)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            MiuixText(
+                text = stringResource(
+                    R.string.hook_text_current,
+                    current.ifEmpty { notSet },
+                ),
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                style = MiuixTheme.textStyles.footnote2,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                TextButton(
-                    text = stringResource(R.string.action_cancel),
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                TextButton(
-                    text = stringResource(R.string.hook_slider_restore_default),
-                    onClick = {
-                        ConfigState.set(spec.key, spec.defaultString)
-                        onDismiss()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                TextButton(
-                    text = stringResource(R.string.action_confirm),
-                    onClick = {
-                        ConfigState.set(spec.key, input)
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            MiuixText(
+                text = stringResource(
+                    R.string.hook_text_default,
+                    spec.defaultString.ifEmpty { notSet },
+                ),
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                style = MiuixTheme.textStyles.footnote2,
+            )
+        }
+        Spacer(Modifier.padding(top = 8.dp))
+        TextField(
+            value = input,
+            onValueChange = { input = it },
+            label = stringResource(R.string.hook_text_placeholder),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            TextButton(
+                text = stringResource(R.string.action_cancel),
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(
+                text = stringResource(R.string.hook_slider_restore_default),
+                onClick = {
+                    ConfigState.set(spec.key, spec.defaultString)
+                    onDismiss()
+                },
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(
+                text = stringResource(R.string.action_confirm),
+                onClick = {
+                    ConfigState.set(spec.key, input)
+                    onDismiss()
+                },
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

@@ -330,7 +330,7 @@ private class DualSignalRuntime(private val flows: DualSimFlowObserver) {
         val root = first.root.get() ?: return
         first.styled = true
         fun setting(key: String, default: Float, min: Float, max: Float) = StatusBarPolicy.bounded(HookPrefs.getFloat(key, default), default, min, max)
-        val scale = setting(StatusBarKeys.DUAL_SCALE, 1f, 0.6f, 1.6f)
+        val scale = setting(StatusBarKeys.DUAL_SCALE, 1f, 0.5f, 2f)
         val color = image.imageTintList?.getColorForState(image.drawableState, first.nativeColor) ?: first.nativeColor
         val density = image.resources.displayMetrics.density
         val offset = setting(StatusBarKeys.DUAL_OFFSET, 0f, -4f, 4f) * density

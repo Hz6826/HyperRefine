@@ -14,6 +14,11 @@ internal object StatusBarMembers {
         HookHelper.deoptimize(executable)
         return HookHelper.hookAfter(executable, callback = callback)
     }
+
+    fun before(executable: Executable, callback: (HookParam) -> Unit): HookHandle {
+        HookHelper.deoptimize(executable)
+        return HookHelper.hookBefore(executable, callback = callback)
+    }
     fun field(type: Class<*>, name: String): Field {
         var current: Class<*>? = type
         while (current != null) {

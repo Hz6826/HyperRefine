@@ -47,6 +47,7 @@ import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
@@ -128,6 +129,9 @@ fun hookSectionTitle(section: HookSection): String = when {
  * @param extraBottomPadding 额外底部内边距（用于底部导航栏遮挡）。
  * @param topContent 页面顶部提示区（显示在搜索栏上方，搜索展开时隐藏）；为空则不显示。
  * @param onArrowClick 箭头卡片点击回调，参数为被点击的 [OptionSpec]。
+ * @param onBack 非空时在顶栏左侧显示返回按钮；根页面（如功能页）保持为空。
+ * @param userScrollEnabled 是否允许外层列表滚动；拖拽排序等自定义手势可临时关闭。
+ * @param showSearch 是否显示页面搜索栏；状态栏图标等自定义拖拽页面可关闭。
  * @param customActionPackages 额外注入重启应用的包名（供二次开发直接暴露自定义应用）。
  * @param topBarActions 顶栏右侧扩展槽（显示在自动生成的「重启应用」按钮之前），为空则不显示。
  */
@@ -140,6 +144,9 @@ fun HookOptionsPage(
     extraBottomPadding: Dp = 0.dp,
     topContent: (@Composable () -> Unit)? = null,
     onArrowClick: (OptionSpec) -> Unit = {},
+    onBack: (() -> Unit)? = null,
+    userScrollEnabled: Boolean = true,
+    showSearch: Boolean = true,
     customActionPackages: List<String> = emptyList(),
     topBarActions: (@Composable () -> Unit)? = null,
 ) {
@@ -205,6 +212,17 @@ fun HookOptionsPage(
                     title = title,
                     color = barColor,
                     scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        if (onBack != null) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = MiuixIcons.Back,
+                                    contentDescription = stringResource(R.string.action_back),
+                                    tint = MiuixTheme.colorScheme.onBackground,
+                                )
+                            }
+                        }
+                    },
                     actions = {
                         topBarActions?.invoke()
                         if (quickActionPackages.isNotEmpty()) {
@@ -234,12 +252,14 @@ fun HookOptionsPage(
                     top = innerPadding.calculateTopPadding(),
                     bottom = innerPadding.calculateBottomPadding() + extraBottomPadding,
                 ),
+                userScrollEnabled = userScrollEnabled,
             ) {
                 if (!expanded && topContent != null) {
                     item(key = "top_content") { topContent() }
                 }
-                item {
-                    SearchBar(
+                if (showSearch) {
+                    item {
+                        SearchBar(
                         inputField = {
                             InputField(
                                 query = query,
@@ -315,6 +335,7 @@ fun HookOptionsPage(
                             }
                         }
                     }
+                }
                 }
 
                 if (!expanded) {

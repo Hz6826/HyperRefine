@@ -207,6 +207,12 @@ private val licenseSections: List<LicenseSection> = listOf(
                 "https://github.com/ReChronoRain/HyperCeiler",
             ),
             LibraryInfo(
+                "XiaomiHelper / HyperHelper",
+                "-",
+                "GPL-3.0，状态栏图标视觉资源（ic_stat_sys_*）与交互设计参考；资源保留原始许可声明",
+                "https://github.com/HowieHChen/XiaomiHelper",
+            ),
+            LibraryInfo(
                 "HyperLight",
                 "-",
                 "非开源，仅思路参考",

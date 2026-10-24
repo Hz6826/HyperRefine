@@ -10,6 +10,7 @@ object StatusBarKeys {
     const val DUAL_RIGHT_GAP = "statusbar_mobile_dual_right_gap"
     const val DUAL_OFFSET = "statusbar_mobile_dual_offset"
     // Deliberately do not read the retired style/bold preference, even from an older installation.
-    val DUAL_KEYS = listOf(DUAL_ROWS, DUAL_SCALE, DUAL_LEFT_GAP, DUAL_RIGHT_GAP, DUAL_OFFSET)
+    // DUAL_OFFSET 仍保留给旧安装读取，但不再属于当前 UI 键集合。
+    val DUAL_KEYS = listOf(DUAL_ROWS, DUAL_SCALE, DUAL_LEFT_GAP, DUAL_RIGHT_GAP)
     val ALL = listOf(WIFI_ACTIVITY, HIDE_TYPE) + DUAL_KEYS
 }

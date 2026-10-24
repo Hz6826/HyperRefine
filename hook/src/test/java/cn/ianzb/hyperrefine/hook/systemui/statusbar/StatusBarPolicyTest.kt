@@ -6,7 +6,7 @@ import org.junit.Test
 class StatusBarPolicyTest {
     @Test fun retainedOptionsHaveUniqueKeysAndOnlySystemUiIsTargeted() {
         assertEquals(listOf(StatusBarKeys.WIFI_ACTIVITY, StatusBarKeys.HIDE_TYPE) + StatusBarKeys.DUAL_KEYS, StatusBarKeys.ALL)
-        assertEquals(7, StatusBarKeys.ALL.distinct().size)
+        assertEquals(6, StatusBarKeys.ALL.distinct().size)
         assertFalse(StatusBarKeys.ALL.any { it.contains("style") || it.contains("bold") })
         assertEquals("com.android.systemui", StatusBarKeys.TARGET)
     }
