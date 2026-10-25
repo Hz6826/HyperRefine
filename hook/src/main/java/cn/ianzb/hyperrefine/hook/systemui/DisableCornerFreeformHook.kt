@@ -54,7 +54,6 @@ class DisableCornerFreeformHook : BaseHook() {
         }
         HookHelper.deoptimize(method)
         HookHelper.hookBefore(method) { param -> param.setResultValue(false) }
-        HookHelper.log("$tag: fullscreen corner freeform disabled")
     }
 
     companion object {

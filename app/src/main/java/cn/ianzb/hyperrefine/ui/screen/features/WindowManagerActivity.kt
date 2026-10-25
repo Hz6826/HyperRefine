@@ -52,6 +52,7 @@ class WindowManagerActivity : BaseSubPageActivity() {
             titleRes = R.string.section_freeform_window,
             specs = listOf(
                 featureSpec(SplitScreenKeys.DISABLE_CORNER_FREEFORM),
+                featureSpec(SplitScreenKeys.FREEFORM_FREE_RATIO),
             ),
         )
         LazyColumn(

@@ -175,6 +175,8 @@
     <string name="section_freeform_window">Freeform windows</string>
     <string name="sosc_disable_corner_freeform">Disable corner drag to freeform</string>
     <string name="sosc_disable_corner_freeform_summary">Dragging from a full-screen app’s bottom-left or bottom-right corner no longer opens a freeform window; resizing a freeform window from its corners still works</string>
+    <string name="freeform_free_ratio">Freeform aspect-ratio free resize</string>
+    <string name="freeform_free_ratio_summary">Tablet / foldable only: drag a freeform window’s corners to adjust width and height independently instead of only scaling proportionally; the ratio used while dragging is kept on release</string>
     <string name="feature_glass">Soft glass</string>
 
     <string name="section_security_center">Security tools</string>

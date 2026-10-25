@@ -32,6 +32,9 @@ object SplitScreenKeys {
     /** 禁用全屏应用底部角落（左下 / 右下）拖出无极小窗的手势。 */
     const val DISABLE_CORNER_FREEFORM = "sosc_disable_corner_freeform"
 
+    /** 普通小窗四角拖动时自由调整宽高比（不再等比缩放）。 */
+    const val FREEFORM_FREE_RATIO = "freeform_free_ratio"
+
     /** 全屏应用「···」把手菜单同时显示左右与上下两对分屏按钮。 */
     const val CAPTION_BOTH_DIRECTIONS = "mulwin_caption_both_split_directions"
 

@@ -106,6 +106,10 @@ class SystemUiLoad : BaseLoad() {
             DisableCornerFreeformHook(),
             HookPrefs.getBoolean(SplitScreenKeys.DISABLE_CORNER_FREEFORM, false),
         )
+        initHook(
+            FreeformFreeRatioHook(),
+            HookPrefs.getBoolean(SplitScreenKeys.FREEFORM_FREE_RATIO, false),
+        )
         // 方向判定兼容层：两个入口任一开启都需要（本身没有配置项）。
         initHook(
             SplitDirectionCompatHook(),

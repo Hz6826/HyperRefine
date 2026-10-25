@@ -175,6 +175,8 @@
     <string name="section_freeform_window">小窗</string>
     <string name="sosc_disable_corner_freeform">禁用角落拖拽无极小窗</string>
     <string name="sosc_disable_corner_freeform_summary">从全屏应用左下 / 右下角拖动不再拉起无极小窗；小窗自身的四角缩放不受影响</string>
+    <string name="freeform_free_ratio">小窗比例无级调节</string>
+    <string name="freeform_free_ratio_summary">平板 / 折叠屏专用：拖动小窗四角时可分别调整宽度和高度，不再只做等比缩放；松手后保持拖动时的比例</string>
     <string name="feature_glass">柔光玻璃</string>
 
     <string name="section_security_center">安全服务</string>
