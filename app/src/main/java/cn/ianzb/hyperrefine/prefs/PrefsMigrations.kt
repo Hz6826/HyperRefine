@@ -1,6 +1,7 @@
 package cn.ianzb.hyperrefine.prefs
 
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconKeys
+import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconRegistry
 
 /**
  * 一次性配置迁移。应用启动时执行，已执行的迁移由标记键去重，不会重复改写用户配置。
@@ -18,11 +19,15 @@ object PrefsMigrations {
 
     private const val MARKER_POSITION_90 = "migration_position_default_90"
     private const val MARKER_HORIZONTAL_CLOCK = "migration_horizontal_clock_empty"
+    private const val MARKER_SPEED_STYLE = "migration_speed_style_v2"
+    private const val MARKER_SPEED_OPTIONS_V3 = "migration_speed_options_v3"
 
     /** 执行所有迁移。 */
     fun run() {
         migratePositionDefaultTo90()
         migrateHorizontalClockDefault()
+        migrateSpeedStyle()
+        migrateSpeedOptionsV3()
     }
 
     /**
@@ -53,5 +58,59 @@ object PrefsMigrations {
             PrefsStore.remove(key)
         }
         PrefsStore.put(MARKER_HORIZONTAL_CLOCK, true)
+    }
+
+    /**
+     * 网速旧样式（数值在上/单位在上/仅单位）已经废弃，统一回到系统双行；
+     * 单位换算开关也一并移除，避免下拉框显示一个不存在的选项。
+     */
+    private fun migrateSpeedStyle() {
+        if (PrefsStore.getBoolean(MARKER_SPEED_STYLE, false)) return
+        val id = StatusBarIconRegistry.NETWORK_SPEED
+        val styleKey = StatusBarIconKeys.speedStyle(id)
+        if (PrefsStore.getString(styleKey, "") in setOf(
+                "number_top",
+                "unit_top",
+                "unit_only",
+            )
+        ) {
+            PrefsStore.put(styleKey, "system")
+        }
+        PrefsStore.remove("statusbar_icon_${id}_speed_unit")
+        PrefsStore.put(MARKER_SPEED_STYLE, true)
+    }
+
+    /**
+     * 去掉单行样式；箭头从布尔开关迁移为箭头/三角/不显示，
+     * 并给单位样式补默认值，避免旧安装显示一个空下拉。
+     */
+    private fun migrateSpeedOptionsV3() {
+        if (PrefsStore.getBoolean(MARKER_SPEED_OPTIONS_V3, false)) return
+        val id = StatusBarIconRegistry.NETWORK_SPEED
+        val styleKey = StatusBarIconKeys.speedStyle(id)
+        if (PrefsStore.getString(styleKey, "") in setOf(
+                "inline",
+                "number_top",
+                "unit_top",
+                "unit_only",
+            )
+        ) {
+            PrefsStore.put(styleKey, "system")
+        }
+        val all = PrefsStore.getAll()
+        val arrowKey = StatusBarIconKeys.speedDualArrowStyle(id)
+        if (!all.containsKey(arrowKey)) {
+            val arrowsEnabled = PrefsStore.getBoolean(
+                StatusBarIconKeys.speedDualArrows(id),
+                true,
+            )
+            PrefsStore.put(arrowKey, if (arrowsEnabled) "arrow" else "none")
+        }
+        val unitKey = StatusBarIconKeys.speedUnitStyle(id)
+        if (!all.containsKey(unitKey)) {
+            PrefsStore.put(unitKey, "kb_s")
+        }
+        PrefsStore.remove(StatusBarIconKeys.speedDualArrows(id))
+        PrefsStore.put(MARKER_SPEED_OPTIONS_V3, true)
     }
 }

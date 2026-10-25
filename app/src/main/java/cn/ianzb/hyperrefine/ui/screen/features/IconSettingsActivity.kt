@@ -12,11 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cn.ianzb.hyperrefine.R
+import cn.ianzb.hyperrefine.hook.device.DeviceType
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconComponent
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconCondition
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconKeys
@@ -34,6 +34,7 @@ import cn.ianzb.hyperrefine.ui.component.pref.HookSectionCard
 import cn.ianzb.hyperrefine.ui.component.pref.HookSliderCard
 import cn.ianzb.hyperrefine.ui.component.pref.HookSwitchCard
 import cn.ianzb.hyperrefine.ui.component.pref.HookTextCard
+import cn.ianzb.hyperrefine.ui.component.pref.rememberEffectiveDeviceType
 import cn.ianzb.hyperrefine.ui.component.statusbar.StatusBarIconPreview
 import cn.ianzb.hyperrefine.ui.component.statusbar.categoryTitleRes
 import cn.ianzb.hyperrefine.ui.component.statusbar.componentTitleRes
@@ -93,9 +94,11 @@ class IconSettingsActivity : BaseSubPageActivity() {
         val mobileSpecs = remember {
             statusBarSpecs(featureSpecs()).filter { it.key != StatusBarKeys.WIFI_ACTIVITY }
         }
-        val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
+        val deviceType = rememberEffectiveDeviceType()
+        val supportsPad = deviceType == DeviceType.PAD || deviceType == DeviceType.FOLD
+        val supportsHorizontalClock = deviceType == DeviceType.PHONE
 
-        LaunchedEffect(id) {
+        LaunchedEffect(id, supportsPad, supportsHorizontalClock) {
             // 自定义二级页不会经过 HookOptionsPage 的自动注册路径，必须把本页
             // 实际渲染的 OptionSpec 全部登记，否则搜索/状态与标准页面不一致。
             OptionRegistry.register(masterSpec())
@@ -105,14 +108,15 @@ class IconSettingsActivity : BaseSubPageActivity() {
             if (id == StatusBarIconRegistry.CLOCK) {
                 clockPatternSpecs(
                     context = context,
-                    includePad = isTablet,
+                    includePad = supportsPad,
+                    includeHorizontal = supportsHorizontalClock,
                 ).forEach(OptionRegistry::register)
                 OptionRegistry.register(alignSpec(id))
                 OptionRegistry.register(clockRefreshSpec())
                 OptionRegistry.register(clockWidthSpec())
             }
             if (id == StatusBarIconRegistry.PAD_CLOCK) {
-                clockPatternSpecs(context, includePad = true)
+                clockPatternSpecs(context, includePad = true, includeHorizontal = false)
                     .firstOrNull { it.key == StatusBarIconKeys.CLOCK_PATTERN_PAD }
                     ?.let(OptionRegistry::register)
             }
@@ -188,7 +192,8 @@ class IconSettingsActivity : BaseSubPageActivity() {
                 item {
                     val patterns = clockPatternSpecs(
                         context = context,
-                        includePad = LocalConfiguration.current.smallestScreenWidthDp >= 600,
+                        includePad = supportsPad,
+                        includeHorizontal = supportsHorizontalClock,
                     )
                     val align = alignSpec(id)
                     val refresh = clockRefreshSpec()
@@ -209,8 +214,11 @@ class IconSettingsActivity : BaseSubPageActivity() {
 
             if (id == StatusBarIconRegistry.PAD_CLOCK) {
                 item {
-                    val spec = clockPatternSpecs(context, includePad = true)
-                        .firstOrNull { it.key == StatusBarIconKeys.CLOCK_PATTERN_PAD }
+                    val spec = clockPatternSpecs(
+                        context,
+                        includePad = true,
+                        includeHorizontal = false,
+                    ).firstOrNull { it.key == StatusBarIconKeys.CLOCK_PATTERN_PAD }
                     HookSectionCard(
                         HookSection(
                             titleRes = R.string.sb_icon_pad_clock,
@@ -432,10 +440,16 @@ class IconSettingsActivity : BaseSubPageActivity() {
             unit = R.string.sb_unit_hour,
             target = listOf(StatusBarKeys.TARGET),
             summary = R.string.sb_icon_alarm_within_summary,
+            dependsOn = StatusBarIconKeys.display(component.id),
+            dependsOnValues = setOf("condition:${StatusBarIconCondition.ALARM_WITHIN.value}"),
         )
     }
 
-    private fun clockPatternSpecs(context: android.content.Context, includePad: Boolean): List<OptionSpec> {
+    private fun clockPatternSpecs(
+        context: android.content.Context,
+        includePad: Boolean,
+        includeHorizontal: Boolean,
+    ): List<OptionSpec> {
         val target = listOf(StatusBarKeys.TARGET)
         val timePattern = runCatching {
             (android.text.format.DateFormat.getTimeFormat(context) as? java.text.SimpleDateFormat)
@@ -473,14 +487,16 @@ class IconSettingsActivity : BaseSubPageActivity() {
                     dateHint,
                 ),
             )
-            add(
-                text(
-                    StatusBarIconKeys.CLOCK_PATTERN_HORIZONTAL,
-                    R.string.sb_clock_pattern_horizontal,
-                    target,
-                    horizontalHint,
-                ),
-            )
+            if (includeHorizontal) {
+                add(
+                    text(
+                        StatusBarIconKeys.CLOCK_PATTERN_HORIZONTAL,
+                        R.string.sb_clock_pattern_horizontal,
+                        target,
+                        horizontalHint,
+                    ),
+                )
+            }
             if (includePad) {
                 add(text(StatusBarIconKeys.CLOCK_PATTERN_PAD, R.string.sb_clock_pattern_pad, target, dateHint))
             }
@@ -533,18 +549,17 @@ class IconSettingsActivity : BaseSubPageActivity() {
     )
 
     private fun speedDropdownSpecs(id: String): List<OptionSpec> {
-        val legacyHideUnit = ConfigState.string(StatusBarIconKeys.speedUnit(id), "native") == "hide_unit"
+        val target = listOf(StatusBarKeys.TARGET)
+        val styleKey = StatusBarIconKeys.speedStyle(id)
+        val dualLine = setOf("dual_line")
         return listOf(
             dropdown(
-                key = StatusBarIconKeys.speedStyle(id),
+                key = styleKey,
                 title = R.string.sb_speed_style,
                 entries = listOf(
                     R.string.sb_speed_style_system to "system",
-                    R.string.sb_speed_style_number_top to "number_top",
-                    R.string.sb_speed_style_unit_top to "unit_top",
-                    R.string.sb_speed_style_inline to "inline",
                     R.string.sb_speed_style_number_only to "number_only",
-                    R.string.sb_speed_style_unit_only to "unit_only",
+                    R.string.sb_speed_style_dual to "dual_line",
                 ),
             ),
             OptionSpec(
@@ -552,17 +567,73 @@ class IconSettingsActivity : BaseSubPageActivity() {
                 type = OptionType.SWITCH,
                 titleRes = R.string.sb_speed_show_unit,
                 summaryRes = R.string.sb_speed_show_unit_summary,
-                defaultBoolean = !legacyHideUnit,
-                targetPackages = listOf(StatusBarKeys.TARGET),
+                defaultBoolean = true,
+                targetPackages = target,
                 dependsOn = StatusBarIconKeys.ENABLED,
             ),
             dropdown(
-                key = StatusBarIconKeys.speedUnit(id),
-                title = R.string.sb_icon_speed_unit,
+                key = StatusBarIconKeys.speedUnitStyle(id),
+                title = R.string.sb_speed_unit_style,
                 entries = listOf(
-                    R.string.sb_speed_unit_native to "native",
-                    R.string.sb_speed_unit_mb to "mb",
+                    R.string.sb_speed_unit_style_kb_s to "kb_s",
+                    R.string.sb_speed_unit_style_k to "k",
+                    R.string.sb_speed_unit_style_kb to "kb",
+                    R.string.sb_speed_unit_style_kbit to "kbit",
+                    R.string.sb_speed_unit_style_kbit_s to "kbit_s",
                 ),
+            ).copy(
+                defaultString = "kb_s",
+                dependsOn = StatusBarIconKeys.speedShowUnit(id),
+                dependsOnValue = true,
+            ),
+            dropdown(
+                key = StatusBarIconKeys.speedDualArrowStyle(id),
+                title = R.string.sb_speed_arrow_style,
+                entries = listOf(
+                    R.string.sb_speed_arrow_arrow to "arrow",
+                    R.string.sb_speed_arrow_triangle to "triangle",
+                    R.string.sb_speed_arrow_none to "none",
+                ),
+            ).copy(
+                defaultString = "arrow",
+                dependsOn = styleKey,
+                dependsOnValues = dualLine,
+            ),
+            dropdown(
+                key = StatusBarIconKeys.speedDualArrowPosition(id),
+                title = R.string.sb_speed_arrow_position,
+                entries = listOf(
+                    R.string.sb_speed_arrow_left to "left",
+                    R.string.sb_speed_arrow_right to "right",
+                ),
+            ).copy(
+                defaultString = "left",
+                dependsOn = StatusBarIconKeys.speedDualArrowStyle(id),
+                dependsOnValues = setOf("arrow", "triangle"),
+            ),
+            OptionSpec(
+                key = StatusBarIconKeys.speedDualUploadFirst(id),
+                type = OptionType.SWITCH,
+                titleRes = R.string.sb_speed_dual_upload_first,
+                summaryRes = R.string.sb_speed_dual_upload_first_summary,
+                defaultBoolean = true,
+                targetPackages = target,
+                dependsOn = styleKey,
+                dependsOnValues = dualLine,
+            ),
+            slider(
+                key = StatusBarIconKeys.speedRowGap(id),
+                title = R.string.sb_speed_row_gap,
+                default = 0f,
+                min = -4f,
+                max = 12f,
+                step = 0.5f,
+                decimals = 1,
+                unit = R.string.sb_unit_dp,
+                target = target,
+                summary = R.string.sb_speed_row_gap_summary,
+                dependsOn = styleKey,
+                dependsOnValues = dualLine,
             ),
             slider(
                 key = StatusBarIconKeys.speedSlowThreshold(id),
@@ -573,7 +644,7 @@ class IconSettingsActivity : BaseSubPageActivity() {
                 step = 1f,
                 decimals = 0,
                 unit = R.string.sb_speed_unit_kb,
-                target = listOf(StatusBarKeys.TARGET),
+                target = target,
                 summary = R.string.sb_speed_slow_threshold_summary,
                 masterKey = StatusBarIconKeys.speedSlowHide(id),
                 masterTitle = R.string.sb_speed_slow_hide,
@@ -588,7 +659,7 @@ class IconSettingsActivity : BaseSubPageActivity() {
                 step = 1f,
                 decimals = 0,
                 unit = R.string.sb_speed_interval_unit,
-                target = listOf(StatusBarKeys.TARGET),
+                target = target,
             ),
             dropdown(
                 key = StatusBarIconKeys.align(id),
@@ -657,6 +728,8 @@ class IconSettingsActivity : BaseSubPageActivity() {
         masterTitle: Int = 0,
         masterSummary: Int = 0,
         masterDefault: Boolean = false,
+        dependsOn: String? = null,
+        dependsOnValues: Set<String> = emptySet(),
     ) = OptionSpec(
         key = key,
         type = OptionType.SLIDER,
@@ -670,7 +743,8 @@ class IconSettingsActivity : BaseSubPageActivity() {
         sliderDecimals = decimals,
         sliderUnitRes = unit,
         targetPackages = target,
-        dependsOn = StatusBarIconKeys.ENABLED,
+        dependsOn = dependsOn ?: StatusBarIconKeys.ENABLED,
+        dependsOnValues = dependsOnValues,
         masterKey = masterKey,
         masterTitleRes = masterTitle,
         masterSummaryRes = masterSummary,

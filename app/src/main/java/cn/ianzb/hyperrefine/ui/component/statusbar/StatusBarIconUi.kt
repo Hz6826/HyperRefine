@@ -90,6 +90,7 @@ fun componentTitleRes(id: String): Int = when (id) {
     StatusBarIconRegistry.SOUND_BOX_SCREEN -> R.string.sb_icon_sound_box_screen
     StatusBarIconRegistry.SOUND_BOX -> R.string.sb_icon_sound_box
     StatusBarIconRegistry.WIRELESS_HEADSET -> R.string.sb_icon_wireless_headset
+    StatusBarIconRegistry.VOLUME -> R.string.sb_icon_volume
     StatusBarIconRegistry.DIST_COMPUTE -> R.string.sb_icon_dist_compute
     StatusBarIconRegistry.CAMERA -> R.string.sb_icon_camera
     StatusBarIconRegistry.GLASSES -> R.string.sb_icon_glasses
@@ -201,9 +202,6 @@ fun effectiveDisplay(component: StatusBarIconComponent, config: StatusBarIconCom
 }
 
 fun currentComponentConfig(id: String): StatusBarIconComponentConfig {
-    val rawSpeedUnit = ConfigState.string(StatusBarIconKeys.speedUnit(id), "native")
-    val legacyHideUnit = rawSpeedUnit == "hide_unit"
-    val speedUnit = if (rawSpeedUnit == "mb") "mb" else "native"
     val rawSpeedFontSize = ConfigState.float(StatusBarIconKeys.speedFontSize(id), 0f)
     return StatusBarIconComponentConfig(
         display = ConfigState.string(StatusBarIconKeys.display(id), ""),
@@ -236,10 +234,23 @@ fun currentComponentConfig(id: String): StatusBarIconComponentConfig {
             StatusBarIconKeys.fontSize(id),
             StatusBarIconRegistry.recommendedFontSize(id).toFloat(),
         ),
-        speedUnit = speedUnit,
-        speedShowUnit = ConfigState.bool(StatusBarIconKeys.speedShowUnit(id), !legacyHideUnit),
+        speedShowUnit = ConfigState.bool(StatusBarIconKeys.speedShowUnit(id), true),
         speedStyle = ConfigState.string(StatusBarIconKeys.speedStyle(id), "system"),
         speedFontSize = rawSpeedFontSize,
+        speedRowGap = ConfigState.float(StatusBarIconKeys.speedRowGap(id), 0f),
+        speedDualArrowStyle = ConfigState.string(
+            StatusBarIconKeys.speedDualArrowStyle(id),
+            "arrow",
+        ),
+        speedDualArrowPosition = ConfigState.string(
+            StatusBarIconKeys.speedDualArrowPosition(id),
+            "left",
+        ),
+        speedDualUploadFirst = ConfigState.bool(
+            StatusBarIconKeys.speedDualUploadFirst(id),
+            true,
+        ),
+        speedUnitStyle = ConfigState.string(StatusBarIconKeys.speedUnitStyle(id), "kb_s"),
         speedSlowHide = ConfigState.bool(StatusBarIconKeys.speedSlowHide(id), false),
         speedSlowThreshold = ConfigState.float(StatusBarIconKeys.speedSlowThreshold(id), 10f).toInt(),
         maxNotifications = ConfigState.float(StatusBarIconKeys.maxNotifications(id), 3f).toInt(),
@@ -513,7 +524,8 @@ private fun xiaomiIconRes(id: String): Int = when (id) {
     StatusBarIconRegistry.HEADSET -> R.drawable.ic_stat_sys_headset
     StatusBarIconRegistry.VPN -> R.drawable.ic_stat_sys_vpn
     StatusBarIconRegistry.ZEN -> R.drawable.ic_stat_sys_zen
-    StatusBarIconRegistry.MUTE -> R.drawable.ic_stat_sys_volume
+    StatusBarIconRegistry.MUTE -> R.drawable.ic_stat_sys_call_mute
+    StatusBarIconRegistry.VOLUME -> R.drawable.ic_stat_sys_volume
     StatusBarIconRegistry.AIRPLANE -> R.drawable.ic_stat_sys_airplane
     StatusBarIconRegistry.HOTSPOT -> R.drawable.ic_stat_sys_hotspot
     StatusBarIconRegistry.NFC -> R.drawable.ic_stat_sys_nfc

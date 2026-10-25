@@ -20,10 +20,14 @@ data class StatusBarIconComponentConfig(
     val align: String = "system",
     val fontWeight: Int = 0,
     val fontSize: Float = 0f,
-    val speedUnit: String = "native",
     val speedShowUnit: Boolean = true,
     val speedStyle: String = "system",
     val speedFontSize: Float = 0f,
+    val speedRowGap: Float = 0f,
+    val speedDualArrowStyle: String = "arrow",
+    val speedDualArrowPosition: String = "left",
+    val speedDualUploadFirst: Boolean = true,
+    val speedUnitStyle: String = "kb_s",
     val speedSlowHide: Boolean = false,
     val speedSlowThreshold: Int = 10,
     val maxNotifications: Int = 3,
@@ -77,18 +81,28 @@ object StatusBarIconConfigReader {
 
     fun load(): StatusBarIconSnapshot {
         val enabled = HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)
-        val order = HookPrefs.getString(StatusBarIconKeys.ORDER, "")
-            .orEmpty()
-            .split(',')
-            .map(String::trim)
-            .filter { it.isNotEmpty() && StatusBarIconRegistry.byId(it) != null }
+        val order = readOrder()
         val configs = StatusBarIconRegistry.components.associate { component ->
             component.id to readComponent(component.id)
         }
         return StatusBarIconSnapshot(enabled, order, configs)
     }
 
+    /** 只读排序，不展开 47 个组件的全部配置；用于每个图标插入时快速求目标位置。 */
+    fun loadOrderedIds(): List<String> {
+        val order = readOrder()
+        if (order.isEmpty()) return emptyList()
+        return StatusBarIconSnapshot(true, order, emptyMap()).reorderableOrder()
+    }
+
     fun loadComponent(id: String): StatusBarIconComponentConfig = readComponent(id)
+
+    private fun readOrder(): List<String> =
+        HookPrefs.getString(StatusBarIconKeys.ORDER, "")
+            .orEmpty()
+            .split(',')
+            .map(String::trim)
+            .filter { it.isNotEmpty() && StatusBarIconRegistry.byId(it) != null }
 
     private fun readComponent(id: String): StatusBarIconComponentConfig {
         val fallback = StatusBarIconComponentConfig()
@@ -106,11 +120,6 @@ object StatusBarIconConfigReader {
         val storedMode = StatusBarIconMode.from(
             HookPrefs.getString(StatusBarIconKeys.mode(id), fallback.mode.value),
         )
-        val rawSpeedUnit = HookPrefs.getString(
-            StatusBarIconKeys.speedUnit(id),
-            fallback.speedUnit,
-        ) ?: fallback.speedUnit
-        val legacyHideUnit = rawSpeedUnit == "hide_unit"
         val rawSpeedFontSize = HookPrefs.getFloat(
             StatusBarIconKeys.speedFontSize(id),
             fallback.speedFontSize,
@@ -165,20 +174,48 @@ object StatusBarIconConfigReader {
                 StatusBarIconKeys.fontSize(id),
                 StatusBarIconRegistry.recommendedFontSize(id).toFloat(),
             ),
-            speedUnit = when {
-                legacyHideUnit -> "native"
-                rawSpeedUnit == "mb" -> "mb"
-                else -> "native"
-            },
             speedShowUnit = HookPrefs.getBoolean(
                 StatusBarIconKeys.speedShowUnit(id),
-                !legacyHideUnit,
+                fallback.speedShowUnit,
             ),
             speedStyle = (HookPrefs.getString(
                 StatusBarIconKeys.speedStyle(id),
                 fallback.speedStyle,
             ) ?: fallback.speedStyle).takeIf { it in SPEED_STYLES } ?: fallback.speedStyle,
             speedFontSize = rawSpeedFontSize,
+            speedRowGap = HookPrefs.getFloat(
+                StatusBarIconKeys.speedRowGap(id),
+                fallback.speedRowGap,
+            ).coerceIn(-4f, 12f),
+            speedDualArrowStyle = run {
+                val stored = HookPrefs.getString(
+                    StatusBarIconKeys.speedDualArrowStyle(id),
+                    "",
+                ).orEmpty()
+                when {
+                    stored in SPEED_ARROW_STYLES -> stored
+                    // 旧版只有“显示箭头”开关；未写新键时按旧值迁移。
+                    HookPrefs.getBoolean(
+                        StatusBarIconKeys.speedDualArrows(id),
+                        true,
+                    ) -> "arrow"
+                    else -> "none"
+                }
+            },
+            speedDualArrowPosition = (HookPrefs.getString(
+                StatusBarIconKeys.speedDualArrowPosition(id),
+                fallback.speedDualArrowPosition,
+            ) ?: fallback.speedDualArrowPosition).takeIf { it in SPEED_ARROW_POSITIONS }
+                ?: fallback.speedDualArrowPosition,
+            speedDualUploadFirst = HookPrefs.getBoolean(
+                StatusBarIconKeys.speedDualUploadFirst(id),
+                fallback.speedDualUploadFirst,
+            ),
+            speedUnitStyle = (HookPrefs.getString(
+                StatusBarIconKeys.speedUnitStyle(id),
+                fallback.speedUnitStyle,
+            ) ?: fallback.speedUnitStyle).takeIf { it in SPEED_UNIT_STYLES }
+                ?: fallback.speedUnitStyle,
             speedSlowHide = HookPrefs.getBoolean(
                 StatusBarIconKeys.speedSlowHide(id),
                 fallback.speedSlowHide,
@@ -208,12 +245,12 @@ object StatusBarIconConfigReader {
     )
     private val SPEED_STYLES = setOf(
         "system",
-        "number_top",
-        "unit_top",
-        "inline",
         "number_only",
-        "unit_only",
+        "dual_line",
     )
+    private val SPEED_ARROW_STYLES = setOf("arrow", "triangle", "none")
+    private val SPEED_ARROW_POSITIONS = setOf("left", "right")
+    private val SPEED_UNIT_STYLES = setOf("k", "kb", "kbit", "kbit_s", "kb_s")
 }
 
 /** 顺序配置只对 slot 型系统图标生效；独立 View 组件由 SystemUI 固定位置。 */

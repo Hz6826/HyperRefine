@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -33,6 +32,7 @@ import androidx.compose.ui.zIndex
 import cn.ianzb.hyperrefine.AppSettings
 import cn.ianzb.hyperrefine.LocaleHelper
 import cn.ianzb.hyperrefine.R
+import cn.ianzb.hyperrefine.hook.device.DeviceType
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconComponent
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconKeys
 import cn.ianzb.hyperrefine.hook.systemui.statusbar.StatusBarIconRegistry
@@ -43,6 +43,7 @@ import cn.ianzb.hyperrefine.prefs.OptionSpec
 import cn.ianzb.hyperrefine.prefs.OptionType
 import cn.ianzb.hyperrefine.ui.component.QuickActionsAction
 import cn.ianzb.hyperrefine.ui.component.pref.HookOptionsPage
+import cn.ianzb.hyperrefine.ui.component.pref.rememberEffectiveDeviceType
 import cn.ianzb.hyperrefine.ui.component.pref.HookSection
 import cn.ianzb.hyperrefine.ui.component.pref.HookSectionCard
 import cn.ianzb.hyperrefine.ui.component.pref.HookSubPage
@@ -112,10 +113,11 @@ class NetworkIconsActivity : ComponentActivity() {
 private fun NetworkIconsContent(onDragStateChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val enabled = ConfigState.bool(StatusBarIconKeys.ENABLED, false)
-    val isTablet = LocalConfiguration.current.smallestScreenWidthDp >= 600
-    val leftComponents = remember(isTablet) {
+    val deviceType = rememberEffectiveDeviceType()
+    val supportsPadClock = deviceType == DeviceType.PAD || deviceType == DeviceType.FOLD
+    val leftComponents = remember(supportsPadClock) {
         StatusBarIconRegistry.left.filter {
-            it.id != StatusBarIconRegistry.PAD_CLOCK || isTablet
+            it.id != StatusBarIconRegistry.PAD_CLOCK || supportsPadClock
         }
     }
     val masterSpec = remember {

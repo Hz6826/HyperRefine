@@ -55,11 +55,17 @@ object StatusBarIconKeys {
     const val CLOCK_LOCK_WIDTH = "${PREFIX}clock_lock_width"
     const val CLOCK_WIDTH = "${PREFIX}clock_width"
 
-    fun speedUnit(id: String) = "${PREFIX}${id}_speed_unit"
     fun speedInterval(id: String) = "${PREFIX}${id}_speed_interval"
     fun speedShowUnit(id: String) = "${PREFIX}${id}_speed_show_unit"
     fun speedStyle(id: String) = "${PREFIX}${id}_speed_style"
     fun speedFontSize(id: String) = "${PREFIX}${id}_speed_font_size"
+    fun speedRowGap(id: String) = "${PREFIX}${id}_speed_row_gap"
+    fun speedDualArrowStyle(id: String) = "${PREFIX}${id}_speed_dual_arrow_style"
+    fun speedDualArrowPosition(id: String) = "${PREFIX}${id}_speed_dual_arrow_position"
+    fun speedUnitStyle(id: String) = "${PREFIX}${id}_speed_unit_style"
+    /** 旧版箭头开关，仅用于迁移到 [speedDualArrowStyle]。 */
+    fun speedDualArrows(id: String) = "${PREFIX}${id}_speed_dual_arrows"
+    fun speedDualUploadFirst(id: String) = "${PREFIX}${id}_speed_dual_upload_first"
     fun speedSlowHide(id: String) = "${PREFIX}${id}_speed_slow_hide"
     fun speedSlowThreshold(id: String) = "${PREFIX}${id}_speed_slow_threshold"
     fun maxNotifications(id: String) = "${PREFIX}${id}_max_notifications"

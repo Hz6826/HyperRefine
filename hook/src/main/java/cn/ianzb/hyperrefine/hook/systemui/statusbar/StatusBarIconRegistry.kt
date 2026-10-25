@@ -114,6 +114,7 @@ object StatusBarIconRegistry {
     const val SOUND_BOX_SCREEN = "sound_box_screen"
     const val SOUND_BOX = "sound_box"
     const val WIRELESS_HEADSET = "wireless_headset"
+    const val VOLUME = "volume"
     const val DIST_COMPUTE = "dist_compute"
     const val CAMERA = "camera"
     const val GLASSES = "glasses"
@@ -134,7 +135,10 @@ object StatusBarIconRegistry {
 
         // 右侧：statusIcons 的 slot 图标和电池；privacy_area 是根布局上 END 对齐的
         // 独立覆盖层，位于最右侧。
-        // 以下 slot 顺序严格按本机 config_statusBarIcons 过滤后的出现顺序。
+        //
+        // 顺序必须与 SystemUI 的 config_statusBarIcons 完全一致。该数组同时决定
+        // StatusBarIconList.mViewOnlySlots 的初始顺序；设置页若使用另一套顺序，
+        // 用户只移动一个图标时其余图标会被强制重排，看起来就像“顺序对不上”。
         StatusBarIconComponent(
             NETWORK_SPEED, "network_speed", StatusBarIconSide.RIGHT,
             conditions = listOf(StatusBarIconCondition.TRAFFIC, StatusBarIconCondition.NO_TRAFFIC),
@@ -143,20 +147,26 @@ object StatusBarIconRegistry {
             textual = true,
         ),
         StatusBarIconComponent(MUTE, "mute", StatusBarIconSide.RIGHT, reorderable = true),
-        StatusBarIconComponent(HEADSET, "headset", StatusBarIconSide.RIGHT, reorderable = true),
-        StatusBarIconComponent(NFC, "nfc", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(MICPHONE, "micphone", StatusBarIconSide.RIGHT, reorderable = true),
-        StatusBarIconComponent(STEALTH, "stealth", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(HEADSET, "headset", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(MIKEY, "mikey", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(PRIVACY_MODE, "privacy_mode", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(NFC, "nfc", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(GPS, "gps", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(MISSED_CALL, "missed_call", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(MANAGED_PROFILE, "managed_profile", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(SECOND_SPACE, "second_space", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(CAST, "cast", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(LOCATION, "location", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(STEALTH, "stealth", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(TTY, "tty", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(
             ALARM, "alarm_clock", StatusBarIconSide.RIGHT,
-            conditions = listOf(
-                StatusBarIconCondition.ALARM_WITHIN,
-                StatusBarIconCondition.NO_ALARM,
-            ),
+            conditions = listOf(StatusBarIconCondition.ALARM_WITHIN),
             reorderable = true,
         ),
         StatusBarIconComponent(VPN, "vpn", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(ETHERNET, "ethernet", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(
             BLUETOOTH, "bluetooth", StatusBarIconSide.RIGHT,
             conditions = listOf(
@@ -179,6 +189,7 @@ object StatusBarIconRegistry {
         StatusBarIconComponent(SOUND_BOX, "sound_box", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(WIRELESS_HEADSET, "wireless_headset", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(ZEN, "zen", StatusBarIconSide.RIGHT, reorderable = true),
+        StatusBarIconComponent(VOLUME, "volume", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(DIST_COMPUTE, "dist_compute", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(CAMERA, "camera", StatusBarIconSide.RIGHT, reorderable = true),
         StatusBarIconComponent(GLASSES, "glasses", StatusBarIconSide.RIGHT, reorderable = true),
@@ -229,8 +240,11 @@ object StatusBarIconRegistry {
 
     fun byId(id: String): StatusBarIconComponent? = components.firstOrNull { it.id == id }
 
-    /** 隐私指示在控制中心由另一套视图绘制，不提供仅控制中心显示/隐藏条件。 */
-    fun supportsControlCenterDisplay(id: String): Boolean = id != PRIVACY
+    /** 只有右侧 slot 图标有控制中心宿主；左侧时钟/运营商/通知不提供该条件。 */
+    fun supportsControlCenterDisplay(id: String): Boolean {
+        val component = byId(id) ?: return false
+        return component.side == StatusBarIconSide.RIGHT && id != PRIVACY
+    }
 
     /** 字重滑块的推荐值：尽量贴近系统宿主默认字重，而不是用 0 表示“系统”。 */
     fun recommendedFontWeight(id: String): Int = when (id) {

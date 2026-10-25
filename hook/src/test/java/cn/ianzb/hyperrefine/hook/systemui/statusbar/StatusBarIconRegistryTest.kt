@@ -8,6 +8,7 @@ class StatusBarIconRegistryTest {
 
     @Test
     fun componentsHaveUniqueIdsAndSlots() {
+        assertEquals(47, StatusBarIconRegistry.components.size)
         val ids = StatusBarIconRegistry.components.map { it.id }
         assertEquals(StatusBarIconRegistry.components.size, ids.size)
         assertEquals(ids.size, ids.toSet().size)
@@ -39,11 +40,48 @@ class StatusBarIconRegistryTest {
         )
         val right = StatusBarIconRegistry.right.map { it.id }
         assertEquals("network_speed", right.first())
-        assertEquals("mute", right[1])
-        assertEquals(listOf("mute", "headset", "nfc"), right.subList(1, 4))
+        assertEquals(
+            listOf(
+                "network_speed",
+                "mute",
+                "micphone",
+                "headset",
+                "mikey",
+                "privacy_mode",
+                "nfc",
+                "gps",
+                "missed_call",
+                "managed_profile",
+                "second_space",
+                "cast",
+                "location",
+                "stealth",
+                "tty",
+                "alarm",
+                "vpn",
+                "ethernet",
+                "bluetooth",
+            ),
+            right.take(19),
+        )
         assertEquals("wifi", right[right.lastIndex - 2])
         assertEquals("battery", right[right.lastIndex - 1])
         assertEquals("privacy", right.last())
+    }
+
+    @Test
+    fun everyNativeConfigSlotIsRepresentedOnce() {
+        // config_statusBarIcons 中除 handle/handle_battery 与 demo 槽外的可见图标。
+        val nativeSlots = listOf(
+            "network_speed", "mute", "micphone", "headset", "mikey", "privacy_mode",
+            "nfc", "gps", "missed_call", "managed_profile", "second_space", "cast",
+            "location", "stealth", "tty", "alarm_clock", "vpn", "ethernet",
+            "bluetooth", "bluetooth_handsfree_battery", "hotspot", "sound_box_group",
+            "stereo", "sound_box_screen", "sound_box", "wireless_headset", "zen",
+            "volume", "dist_compute", "camera", "glasses", "car", "tv", "pc", "pad",
+            "phone", "hd", "airplane", "mobile", "no_sim", "wifi",
+        )
+        assertEquals(nativeSlots, StatusBarIconRegistry.right.mapNotNull { it.slot })
     }
 
     @Test

@@ -20,6 +20,7 @@ import cn.ianzb.hyperrefine.hook.device.DeviceType
  * @param showStatus 是否在副标题末尾展示 Hook 生效状态（「已生效 / 未生效」，来自目标进程回报）
  * @param dependsOn 依赖的配置键；为空表示无依赖
  * @param dependsOnValue 依赖键需要等于该布尔值时才启用
+ * @param dependsOnValues 非空时改为比较依赖键的字符串值，命中任一值才启用
  * @param masterKey 滑块的主开关键（开关控制滑块是否生效/显示）
  * @param masterDefault [masterKey] 的默认开关状态
  * @param masterTitleRes 主开关标题资源（0 表示复用 [titleRes]）
@@ -49,6 +50,7 @@ data class OptionSpec(
     val showStatus: Boolean = false,
     val dependsOn: String? = null,
     val dependsOnValue: Boolean = true,
+    val dependsOnValues: Set<String> = emptySet(),
     val masterKey: String? = null,
     val masterDefault: Boolean = false,
     val masterTitleRes: Int = 0,

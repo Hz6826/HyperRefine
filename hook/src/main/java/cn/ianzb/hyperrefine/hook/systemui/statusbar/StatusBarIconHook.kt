@@ -104,6 +104,56 @@ class StatusBarIconHook : BaseHook() {
                 }
             }.getOrDefault(emptyList())
         }.orEmpty()
+        val iconContainerClass = Reflect.findClassIfExists(
+            "com.android.systemui.statusbar.views.MiuiStatusIconContainer",
+            loader,
+        )
+        val onIconContainerLayout = iconContainerClass?.let {
+            runCatching {
+                StatusBarMembers.methods(it, "onLayout") { method -> method.parameterCount == 5 }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
+        val notificationClass = Reflect.findClassIfExists(
+            "com.android.systemui.statusbar.phone.NotificationIconContainer",
+            loader,
+        )
+        val notificationMax = notificationClass?.let {
+            runCatching {
+                StatusBarMembers.methods(it, "setMaxIconsAmount") { method ->
+                    method.parameterCount == 1
+                }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
+        val notificationLayout = notificationClass?.let {
+            runCatching {
+                StatusBarMembers.methods(it, "onLayout") { method ->
+                    method.parameterCount == 5
+                }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
+        val notificationAdded = notificationClass?.let {
+            runCatching {
+                StatusBarMembers.methods(it, "onViewAdded") { method ->
+                    method.parameterCount == 1
+                }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
+        val notificationRemoved = notificationClass?.let {
+            runCatching {
+                StatusBarMembers.methods(it, "onViewRemoved") { method ->
+                    method.parameterCount == 1
+                }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
+        // NotificationIconContainer 没有覆写 onAttachedToWindow；不能用 methods()
+        // 沿父类查找，否则会把 View.onAttachedToWindow 全局 hook 到所有 View 上。
+        val notificationAttached = notificationClass?.let { type ->
+            runCatching {
+                type.declaredMethods
+                    .filter { it.name == "onAttachedToWindow" && it.parameterCount == 0 }
+                    .onEach { it.isAccessible = true }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
         val batteryViewClass = Reflect.findClassIfExists(
             "com.android.systemui.statusbar.views.MiuiBatteryMeterView",
             loader,
@@ -293,6 +343,87 @@ class StatusBarIconHook : BaseHook() {
             }
         }
         StatusBarMembers.install(installs)
+        // 这些 hook 只优化间距动画与通知上限的即时性；部分 ROM 不支持 hook
+        // onLayout/构造器时不能让它们把整套状态栏图标功能一起回滚。
+        onIconContainerLayout.forEach { method ->
+            runCatching {
+                StatusBarMembers.after(method) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.applyIconGapTranslations(
+                            param.thisObject as? ViewGroup,
+                        )
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "icon layout after hook unavailable", it)
+            }
+            runCatching {
+                StatusBarMembers.before(method) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.prepareIconLayout(param.thisObject as? ViewGroup)
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "icon layout before hook unavailable", it)
+            }
+        }
+        notificationAttached.forEach { method ->
+            runCatching {
+                StatusBarMembers.after(method) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.applyNotificationLimit(param.thisObject as? View)
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "notification attach hook unavailable", it)
+            }
+        }
+        notificationLayout.forEach { method ->
+            runCatching {
+                StatusBarMembers.before(method) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.applyNotificationLimit(param.thisObject as? View)
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "notification layout hook unavailable", it)
+            }
+        }
+        notificationMax.forEach { method ->
+            runCatching {
+                StatusBarMembers.after(method) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.applyNotificationLimit(param.thisObject as? View)
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "notification max hook unavailable", it)
+            }
+        }
+        (notificationAdded + notificationRemoved).forEach { method ->
+            runCatching {
+                StatusBarMembers.after(method) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.invalidateNotificationDots(
+                            param.thisObject as? View,
+                        )
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "notification child hook unavailable", it)
+            }
+        }
+        notificationClass?.declaredConstructors?.forEach { constructor ->
+            runCatching {
+                StatusBarMembers.after(constructor) { param ->
+                    guard.run {
+                        StatusBarIconRuntime.applyNotificationLimit(param.thisObject as? View)
+                    }
+                }
+            }.onFailure {
+                android.util.Log.w("HyperRefineStatusBar", "notification constructor hook unavailable", it)
+            }
+        }
         sendEmptyDelayed?.let { method ->
             runCatching {
                 StatusBarMembers.before(method) { param ->

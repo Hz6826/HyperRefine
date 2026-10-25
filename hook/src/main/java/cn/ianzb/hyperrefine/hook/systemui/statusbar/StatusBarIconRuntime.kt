@@ -9,8 +9,10 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.ConnectivityManager
+import android.net.TrafficStats
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
@@ -20,6 +22,8 @@ import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import cn.ianzb.hyperrefine.hook.device.DeviceContext
+import cn.ianzb.hyperrefine.hook.device.DeviceType
 import cn.ianzb.hyperrefine.hook.prefs.HookPrefs
 import cn.ianzb.hyperrefine.hook.xposed.Reflect
 import java.lang.ref.WeakReference
@@ -43,6 +47,8 @@ internal object StatusBarIconRuntime {
     private val iconGroups = mutableListOf<WeakReference<ViewGroup>>()
     private val batteryViews = mutableListOf<WeakReference<View>>()
     private val groupHidden = WeakHashMap<View, Boolean>()
+    /** 每个容器由模块临时加入 ignoredSlots 的 slot；只撤销这些，不碰原生归属。 */
+    private val groupModuleIgnored = WeakHashMap<ViewGroup, MutableSet<String>>()
 
     /** 注册所有场景的 MiuiClock；1s ticker 直接调用官方 updateTime，让当前场景自行格式化。 */
     private val clockViews = WeakHashMap<TextView, Boolean>()
@@ -85,14 +91,24 @@ internal object StatusBarIconRuntime {
     private val originalClockTexts = WeakHashMap<TextView, CharSequence?>()
     private val speedStyles = WeakHashMap<View, SpeedStyleState>()
     private val speedSlowStates = WeakHashMap<View, Boolean>()
+    private val speedTraffic = WeakHashMap<View, TrafficSample>()
+    private val gapStates = WeakHashMap<View, GapState>()
+    private val gapBaseWidths = WeakHashMap<View, Int>()
+    private val gapDeferred = WeakHashMap<View, Boolean>()
     private val notificationDotStates = WeakHashMap<View, DotDrawState>()
+    private val notificationMaxBases = WeakHashMap<View, Int>()
     private val clockWidths = WeakHashMap<TextView, Int>()
     private val idCache = HashMap<String, Int>()
     private var restoringClock = false
+    private var notificationMaxCache = -1
+    private var slotRankCacheKey = ""
+    private var slotRankCache: Map<String, Int> = emptyMap()
 
     /** 最近一次 Controller；用于配置变化后不重启 SystemUI 直接重排视图。 */
     private var controllerRef: WeakReference<Any>? = null
     private var nativeSlotOrder: List<String>? = null
+    // 这些基线必须全局唯一；多个 Host（状态栏、锁屏、CC）各自保存一份会把
+    // 别的 Host 已经改过的列表当成原生基线，导致列表在两次刷新之间来回翻转。
     private val orderHandler = Handler(Looper.getMainLooper())
     private var lastLiveOrder: String? = null
     private var rebuildingGroups = false
@@ -120,6 +136,34 @@ internal object StatusBarIconRuntime {
         // onLayout 依赖子 View 实际宽度，必须显式请求一次布局，否则会沿用 0 宽度位置。
         group.requestLayout()
         group.post { group.requestLayout() }
+        // 首次启动时 Host 的 refresh 往往早于 controller 的 IconManager 注册；
+        // 只改静态 block list 不会更新已经创建的 mBlockList/ignoredSlots。
+        // 等新组注册后再刷一次，避免必须手动改一次设置才生效。
+        refreshSoon()
+    }
+
+    /**
+     * 原生 onLayout 会读取子 View 的 translationX 来同步动画起始位置。
+     * 布局前先还原，布局后再叠加自定义间距，避免间距被动画当成原生位置。
+     */
+    fun prepareIconLayout(group: ViewGroup?) {
+        group ?: return
+        if (gapStates.isEmpty()) return
+        for (i in 0 until group.childCount) {
+            val child = group.getChildAt(i) ?: continue
+            gapStates[child]?.let { child.translationX = it.baseTranslationX }
+        }
+    }
+
+    fun applyIconGapTranslations(group: ViewGroup?) {
+        group ?: return
+        if (gapStates.isEmpty()) return
+        for (i in 0 until group.childCount) {
+            val child = group.getChildAt(i) ?: continue
+            gapStates[child]?.let {
+                child.translationX = it.baseTranslationX + it.offset
+            }
+        }
     }
 
     /** 电池在状态栏与控制中心可能由不同 View 承载，单独登记以便统一切换可见性。 */
@@ -130,6 +174,8 @@ internal object StatusBarIconRuntime {
     }
 
     fun onPreferencesChanged() {
+        notificationMaxCache = -1
+        slotRankCacheKey = ""
         // 滑块/输入框会连续写偏好；合并成一次刷新，避免拖动时反复全量遍历宿主。
         if (!refreshPending) {
             refreshPending = true
@@ -227,6 +273,63 @@ internal object StatusBarIconRuntime {
     /** 组件 ID 不一定等于原生 slot，例如 alarm 的 slot 是 alarm_clock。 */
     private fun slotNameForId(id: String): String =
         StatusBarIconRegistry.byId(id)?.slot ?: id
+
+    /**
+     * 图标组按 [StatusBarIconControllerImpl.addIconGroup] 的顺序逐个 addView。
+     * 某些 ROM 在图标动态出现时会重新生成 mViewOnlySlots，只在建组前排序会漏掉
+     * VPN/静音/勿扰这类后插入的 slot。这里按“目标完整 slot 顺序”做插入排序：
+     * 每个图标加入时，计算它应排在已存在子 View 的哪个位置，保证最终子 View
+     * 顺序始终与设置一致，同时保留 handle/data_saver 等不可管理 slot 的原位置。
+     */
+    fun adjustIconAddedIndex(manager: Any?, slot: String?, fallback: Int): Int {
+        if (slot.isNullOrEmpty()) return fallback
+        if (nativeSlotOrder.isNullOrEmpty()) return fallback
+        if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) return fallback
+        val desiredIds = StatusBarIconConfigReader.loadOrderedIds()
+        if (desiredIds.isEmpty()) return fallback
+        val desiredSlots = desiredIds.map(::slotNameForId)
+        val ranks = slotRanks(desiredSlots)
+        val newRank = ranks[slot] ?: return fallback
+        manager ?: return fallback
+        val group = runCatching {
+            Reflect.getObjectField(manager, "mGroup") as? ViewGroup
+        }.getOrNull() ?: return fallback
+        var target = 0
+        for (i in 0 until group.childCount) {
+            val childSlot = runCatching {
+                Reflect.callMethod(group.getChildAt(i), "getSlot") as? String
+            }.getOrNull() ?: continue
+            // 同一 slot 已经存在时绝不改写插入下标：控制器重刷会在旧 View
+            // 尚未移除时再次走 onIconAdded，改写下标会把新 View 插到旧 View
+            // 后面，形成两个蓝牙等重复图标。
+            if (childSlot == slot) return fallback
+            val rank = ranks[childSlot] ?: continue
+            // 双卡等同一 slot 的多个 holder 保持原有先后顺序。
+            if (rank < newRank) target++
+        }
+        return target.coerceIn(0, group.childCount)
+    }
+
+    private fun slotRanks(desiredSlots: List<String>): Map<String, Int> {
+        val key = desiredSlots.joinToString(",")
+        if (key == slotRankCacheKey) return slotRankCache
+        val base = nativeSlotOrder
+        val result = if (base.isNullOrEmpty()) {
+            desiredSlots.withIndex().associate { it.value to it.index }
+        } else {
+            val index = desiredSlots.withIndex().associate { it.value to it.index }
+            val expose = desiredSlots.toSet()
+            val positions = base.indices.filter { base[it] in expose }
+            val sorted = positions.map { base[it] }
+                .sortedBy { index[it] ?: Int.MAX_VALUE }
+            val full = base.toMutableList()
+            positions.forEachIndexed { i, position -> full[position] = sorted[i] }
+            full.withIndex().associate { it.value to it.index }
+        }
+        slotRankCacheKey = key
+        slotRankCache = result
+        return result
+    }
 
     /**
      * 只交换命中顺序的 slot 在数组中的彼此位置，未暴露的 slot 保持原索引；
@@ -346,6 +449,62 @@ internal object StatusBarIconRuntime {
         return names.filter { it in expose } == desired.filter { it in names }
     }
 
+    /**
+     * 通知图标上限必须在新容器构造、以及宿主调用 setMaxIconsAmount 后立即重放。
+     * 只等下一次全量 refresh 会出现约 1 秒的系统三图标回退。
+     */
+    fun applyNotificationLimit(container: View?) {
+        container ?: return
+        if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) {
+            notificationMaxBases.remove(container)?.let { base ->
+                setNotificationMax(container, base)
+            }
+            return
+        }
+        val current = runCatching {
+            Reflect.getObjectField(container, "mMaxIcons") as? Int
+        }.getOrNull() ?: return
+        val max = notificationMaxCache.takeIf { it > 0 } ?: StatusBarIconConfigReader
+            .loadComponent(StatusBarIconRegistry.NOTIFICATIONS)
+            .maxNotifications
+            .coerceIn(1, 16)
+            .also { notificationMaxCache = it }
+        if (current == max) return
+        // 原生初始值可能是 Integer.MAX_VALUE；关闭模块时应回到系统三图标，
+        // 而不是把这个哨兵值写回宿主。
+        if (!notificationMaxBases.containsKey(container)) {
+            notificationMaxBases[container] = current.takeIf { it in 1..64 } ?: 3
+        }
+        setNotificationMax(container, max)
+        // 缩到 3 个以下时宿主可能不会主动重算 mFirstOverflowIndex；圆点仍停在
+        // 旧图标上。这里在下一帧按新上限重算可见状态，再重绘圆点。
+        refreshNotificationDots(container)
+    }
+
+    fun refreshNotificationDots(container: View?) {
+        val group = container as? ViewGroup ?: return
+        if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) return
+        if (!HookPrefs.getBoolean(
+                StatusBarIconKeys.notificationMultiDot(StatusBarIconRegistry.NOTIFICATIONS),
+                false,
+            )
+        ) {
+            return
+        }
+        group.post {
+            runCatching { Reflect.callMethod(group, "calculateIconXTranslations") }
+            runCatching { Reflect.callMethod(group, "applyIconStates") }
+            for (i in 0 until group.childCount) group.getChildAt(i)?.invalidate()
+            group.invalidate()
+        }
+    }
+
+    private fun setNotificationMax(container: View, max: Int) {
+        runCatching {
+            Reflect.callMethod(container, "setMaxIconsAmount", max)
+        }
+    }
+
     /** 刷新间隔只改控制器下一次采样 delay；显示层不再二次节流。 */
     fun applyNetworkSpeed(view: View) {
         if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) return
@@ -370,27 +529,31 @@ internal object StatusBarIconRuntime {
                 ?: return
             val unitText = Reflect.getObjectField(view, "mNetworkSpeedUnitText") as? TextView
                 ?: return
-            val number = Reflect.getObjectField(view, "mNetworkSpeedNumber")?.toString().orEmpty()
-            val unit = Reflect.getObjectField(view, "mNetworkSpeedUnit")?.toString().orEmpty()
-            numberText.text = if (number.isEmpty()) "" else "$number "
-            unitText.text = if (unit.isEmpty()) "" else "$unit "
-            when {
-                config.speedUnit == "mb" -> {
-                    val value = number.trim().toFloatOrNull()
-                    when {
-                        value != null && (
-                            unit.contains("KB", ignoreCase = true) ||
-                                unit.contains("K/s", ignoreCase = true)
-                            ) -> {
-                            numberText.text = String.format(Locale.US, "%.2f ", value / 1024f)
-                            unitText.text = "MB/s "
-                        }
-                        value != null && unit.contains("B/s", ignoreCase = true) &&
-                            !unit.contains("KB", ignoreCase = true) &&
-                            !unit.contains("MB", ignoreCase = true) -> {
-                            numberText.text = String.format(Locale.US, "%.2f ", value / 1048576f)
-                            unitText.text = "MB/s "
-                        }
+            val number = Reflect.getObjectField(view, "mNetworkSpeedNumber")?.toString().orEmpty().trim()
+            val unit = Reflect.getObjectField(view, "mNetworkSpeedUnit")?.toString().orEmpty().trim()
+            val showUnit = config.speedShowUnit
+            when (config.speedStyle) {
+                "dual_line" -> {
+                    val (down, up) = sampleTraffic(view)
+                    val downText = formatSpeed(down, showUnit, config.speedUnitStyle)
+                    val upText = formatSpeed(up, showUnit, config.speedUnitStyle)
+                    val downLine = decorateSpeed(downText, config, upload = false)
+                    val upLine = decorateSpeed(upText, config, upload = true)
+                    numberText.text = if (config.speedDualUploadFirst) upLine else downLine
+                    unitText.text = if (config.speedDualUploadFirst) downLine else upLine
+                }
+                "number_only" -> {
+                    numberText.text = number
+                    unitText.text = ""
+                }
+                else -> {
+                    numberText.text = if (number.isEmpty()) "" else "$number "
+                    // 跟随系统样式仍由原生提供数值和当前量级；单位写法按同一份
+                    // K/M/G 映射改写，保证不改变原生字号、行距和采样结果。
+                    unitText.text = if (showUnit && number.isNotEmpty() && unit.isNotEmpty()) {
+                        "${speedUnitLabel(config.speedUnitStyle, speedUnitScale(unit))} "
+                    } else {
+                        ""
                     }
                 }
             }
@@ -404,9 +567,14 @@ internal object StatusBarIconRuntime {
         val numberText = state.numberText
         val unitText = state.unitText
         val size = config.speedFontSize
+        val dual = config.speedStyle == "dual_line"
         if (!config.fontSizeEnabled || size <= 0f) {
             numberText.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.numberTextSize)
-            unitText.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.unitTextSize)
+            // 双排两行必须同字号；系统原生单位字号更小，这里统一成数值字号。
+            unitText.setTextSize(
+                TypedValue.COMPLEX_UNIT_PX,
+                if (dual) state.numberTextSize else state.unitTextSize,
+            )
             return
         }
         val ratio = if (state.numberTextSize > 0f) {
@@ -415,7 +583,10 @@ internal object StatusBarIconRuntime {
             0.91f
         }
         numberText.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
-        unitText.setTextSize(TypedValue.COMPLEX_UNIT_SP, (size * ratio).coerceAtLeast(4f))
+        unitText.setTextSize(
+            TypedValue.COMPLEX_UNIT_SP,
+            if (dual) size else (size * ratio).coerceAtLeast(4f),
+        )
     }
 
     private fun applySpeedLayout(view: View, config: StatusBarIconComponentConfig) {
@@ -423,66 +594,38 @@ internal object StatusBarIconRuntime {
         val container = state.container ?: return
         val numberText = state.numberText
         val unitText = state.unitText
+        val showUnit = config.speedShowUnit
+        val numberOnly = config.speedStyle == "number_only" || (!showUnit && config.speedStyle == "system")
+        val dual = config.speedStyle == "dual_line"
 
-        var showNumber = config.speedStyle != "unit_only"
-        var showUnit = config.speedShowUnit &&
-            config.speedUnit != "hide_unit" &&
-            config.speedStyle != "number_only"
-        if (!showNumber && !showUnit) showNumber = true
-        numberText.visibility = if (showNumber) View.VISIBLE else View.GONE
-        unitText.visibility = if (showUnit) View.VISIBLE else View.GONE
+        numberText.visibility = View.VISIBLE
+        unitText.visibility = if (numberOnly) View.GONE else View.VISIBLE
 
-        val horizontal = Gravity.CENTER_HORIZONTAL
-        val numberGravity: Int
-        val unitGravity: Int
-        val numberTranslation: Float
-        val unitTranslation: Float
-        var minWidth = 0
-        when (config.speedStyle) {
-            "number_top" -> {
-                numberGravity = Gravity.TOP or horizontal
-                unitGravity = Gravity.BOTTOM or horizontal
-                numberTranslation = 0f
-                unitTranslation = 0f
-            }
-            "unit_top" -> {
-                numberGravity = Gravity.BOTTOM or horizontal
-                unitGravity = Gravity.TOP or horizontal
-                numberTranslation = 0f
-                unitTranslation = 0f
-            }
-            "inline" -> {
-                numberGravity = Gravity.START or Gravity.CENTER_VERTICAL
-                unitGravity = Gravity.END or Gravity.CENTER_VERTICAL
-                numberText.translationX = state.numberTranslationX
-                unitText.translationX = state.unitTranslationX
-                numberTranslation = 0f
-                unitTranslation = 0f
-                if (showNumber && showUnit) {
-                    val gap = (2f * view.resources.displayMetrics.density).roundToInt()
-                    minWidth = numberText.paint.measureText(numberText.text.toString()).roundToInt() +
-                        unitText.paint.measureText(unitText.text.toString()).roundToInt() + gap
-                }
-            }
-            "number_only", "unit_only" -> {
-                numberGravity = horizontal or Gravity.CENTER_VERTICAL
-                unitGravity = horizontal or Gravity.CENTER_VERTICAL
-                numberTranslation = 0f
-                unitTranslation = 0f
-            }
-            else -> {
-                numberGravity = state.numberGravity
-                unitGravity = state.unitGravity
-                numberTranslation = state.numberTranslation
-                unitTranslation = state.unitTranslation
-            }
+        var numberGravity = state.numberGravity
+        var unitGravity = state.unitGravity
+        var numberTranslation = state.numberTranslation
+        var unitTranslation = state.unitTranslation
+        if (numberOnly) {
+            numberGravity = Gravity.CENTER
+            unitGravity = Gravity.CENTER
+            numberTranslation = 0f
+            unitTranslation = 0f
+        } else if (dual) {
+            // 双排不依赖 TOP/BOTTOM gravity；两行都以中心为基准，再叠加系统原始
+            // 行距与用户偏移，这样默认效果和系统两行网速一致。
+            val rowGap = config.speedRowGap * view.resources.displayMetrics.density
+            numberGravity = Gravity.CENTER
+            unitGravity = Gravity.CENTER
+            numberTranslation = state.numberTranslation - rowGap / 2f
+            unitTranslation = state.unitTranslation + rowGap / 2f
         }
 
         setFrameGravity(numberText, numberGravity)
         setFrameGravity(unitText, unitGravity)
+        numberText.translationX = state.numberTranslationX
+        unitText.translationX = state.unitTranslationX
         numberText.translationY = numberTranslation
         unitText.translationY = unitTranslation
-        if (container.minimumWidth != minWidth) container.minimumWidth = minWidth
 
         // 样式/字号变化后清掉宿主缓存的空宽度，避免网速仍按旧尺寸占位。
         val cachedEmptyWidth = runCatching {
@@ -490,9 +633,115 @@ internal object StatusBarIconRuntime {
         }.getOrNull()
         if (cachedEmptyWidth != -1) {
             runCatching { Reflect.setObjectField(view, "mEmptyWidth", -1) }
-            view.requestLayout()
         }
         container.requestLayout()
+        view.requestLayout()
+    }
+
+    private fun sampleTraffic(view: View): Pair<Long, Long> {
+        val now = SystemClock.elapsedRealtime()
+        val tx = trafficBytes { TrafficStats.getTotalTxBytes() to TrafficStats.getTxBytes("lo") }
+        val rx = trafficBytes { TrafficStats.getTotalRxBytes() to TrafficStats.getRxBytes("lo") }
+        val previous = speedTraffic[view]
+        var down = previous?.down ?: 0L
+        var up = previous?.up ?: 0L
+        if (previous != null) {
+            val elapsed = now - previous.time
+            if (elapsed >= 350L) {
+                down = ((rx - previous.rx).coerceAtLeast(0L) * 1000L / elapsed)
+                up = ((tx - previous.tx).coerceAtLeast(0L) * 1000L / elapsed)
+            }
+        }
+        speedTraffic[view] = TrafficSample(now, tx, rx, down, up)
+        return down to up
+    }
+
+    private fun trafficBytes(read: () -> Pair<Long, Long>): Long = runCatching {
+        val (total, loopback) = read()
+        if (total <= 0L) 0L else (total - loopback.coerceAtLeast(0L)).coerceAtLeast(0L)
+    }.getOrDefault(0L)
+
+    private fun formatSpeed(
+        bytesPerSecond: Long,
+        showUnit: Boolean,
+        unitStyle: String,
+    ): String {
+        var value = bytesPerSecond / 1024f
+        var scale = 1
+        while (value > 999f && scale < 3) {
+            value /= 1024f
+            scale++
+        }
+        val number = when {
+            value < 10f -> String.format(Locale.getDefault(), "%.2f", value)
+            value < 100f -> String.format(Locale.getDefault(), "%.1f", value)
+            else -> String.format(Locale.getDefault(), "%.0f", value)
+        }
+        return if (showUnit) "$number ${speedUnitLabel(unitStyle, scale)}" else number
+    }
+
+    /** 单位标签随数值自动换 K/M/G；只改标签写法，不改变 1024 进制换算。 */
+    private fun speedUnitLabel(style: String, scale: Int): String = when (style) {
+        "k" -> when (scale) {
+            0 -> "B"
+            1 -> "K"
+            2 -> "M"
+            else -> "G"
+        }
+        "kb" -> when (scale) {
+            0 -> "B"
+            1 -> "KB"
+            2 -> "MB"
+            else -> "GB"
+        }
+        "kbit" -> when (scale) {
+            0 -> "b"
+            1 -> "Kb"
+            2 -> "Mb"
+            else -> "Gb"
+        }
+        "kbit_s" -> when (scale) {
+            0 -> "b/s"
+            1 -> "Kb/s"
+            2 -> "Mb/s"
+            else -> "Gb/s"
+        }
+        else -> when (scale) {
+            0 -> "B/s"
+            1 -> "KB/s"
+            2 -> "MB/s"
+            else -> "GB/s"
+        }
+    }
+
+    /** 从原生单位标签读取当前量级，只用于跟随系统样式的单位改写。 */
+    private fun speedUnitScale(unit: String): Int = when {
+        unit.startsWith("G") -> 3
+        unit.startsWith("M") -> 2
+        unit.startsWith("K") -> 1
+        else -> 0
+    }
+
+    /** 箭头与数字只留一个 thin space，避免默认的整格空格把双排撑得过宽。 */
+    private fun decorateSpeed(
+        text: String,
+        config: StatusBarIconComponentConfig,
+        upload: Boolean,
+    ): String {
+        val marker = speedArrowMark(config.speedDualArrowStyle, upload)
+        if (marker.isEmpty()) return text
+        val gap = "\u2009"
+        return if (config.speedDualArrowPosition == "right") {
+            "$text$gap$marker"
+        } else {
+            "$marker$gap$text"
+        }
+    }
+
+    private fun speedArrowMark(style: String, upload: Boolean): String = when (style) {
+        "none" -> ""
+        "triangle" -> if (upload) "▲" else "▼"
+        else -> if (upload) "↑" else "↓"
     }
 
     private fun setFrameGravity(view: TextView, gravity: Int) {
@@ -552,6 +801,10 @@ internal object StatusBarIconRuntime {
             runCatching {
                 state.numberText.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.numberTextSize)
                 state.unitText.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.unitTextSize)
+                val number = Reflect.getObjectField(view, "mNetworkSpeedNumber")?.toString().orEmpty()
+                val unit = Reflect.getObjectField(view, "mNetworkSpeedUnit")?.toString().orEmpty()
+                state.numberText.text = if (number.isEmpty()) "" else "$number "
+                state.unitText.text = if (unit.isEmpty()) "" else "$unit "
                 state.numberText.visibility = View.VISIBLE
                 state.unitText.visibility = View.VISIBLE
                 state.numberText.translationX = state.numberTranslationX
@@ -573,6 +826,7 @@ internal object StatusBarIconRuntime {
         }
         speedStyles.clear()
         speedSlowStates.clear()
+        speedTraffic.clear()
     }
 
     /**
@@ -627,13 +881,33 @@ internal object StatusBarIconRuntime {
         }
     }
 
+    /**
+     * 通知增删后强制重绘溢出点。原生只在图标动画时才 invalidate，
+     * 隐藏数量变化但图标位置不变时，最后一次绘制会停留在旧圆点数量。
+     */
+    fun invalidateNotificationDots(container: View?) {
+        val group = container as? ViewGroup ?: return
+        if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) return
+        if (!HookPrefs.getBoolean(
+                StatusBarIconKeys.notificationMultiDot(StatusBarIconRegistry.NOTIFICATIONS),
+                false,
+            )
+        ) {
+            return
+        }
+        group.post {
+            for (i in 0 until group.childCount) group.getChildAt(i)?.invalidate()
+            group.invalidate()
+        }
+    }
+
     private fun notificationDotState(view: View): DotDrawState? {
         val parent = view.parent as? ViewGroup ?: return null
         if (parent.javaClass.simpleName != "NotificationIconContainer") return null
         val first = runCatching {
             Reflect.getObjectField(parent, "mFirstOverflowIndex") as? Int
         }.getOrNull() ?: return null
-        if (first < 0 || parent.indexOfChild(view) < first) return null
+        if (first <= 0 || parent.indexOfChild(view) < first) return null
         val visibleState = runCatching {
             Reflect.getObjectField(view, "mVisibleState") as? Int
         }.getOrNull() ?: return null
@@ -652,7 +926,17 @@ internal object StatusBarIconRuntime {
             val ex = Reflect.getObjectField(view, "mExParams") ?: return@runCatching 0f
             Reflect.getObjectField(ex, "dotPadding") as? Float ?: 0f
         }.getOrDefault(0f)
-        val count = (parent.childCount - first).coerceIn(1, 3)
+        // mFirstOverflowIndex 在部分 ROM 上要等下一帧才更新；用自定义上限做
+        // 下界兜底，避免新增通知后仍按旧 first 画出偏少的圆点。
+        val maxIcons = runCatching {
+            Reflect.getObjectField(parent, "mMaxIcons") as? Int
+        }.getOrNull() ?: Int.MAX_VALUE
+        val effectiveFirst = if (maxIcons in 1 until parent.childCount) {
+            minOf(first, maxIcons)
+        } else {
+            first
+        }
+        val count = (parent.childCount - effectiveFirst).coerceIn(1, 3)
         return DotDrawState(count, progress, radius, color, padding)
     }
 
@@ -905,7 +1189,9 @@ internal object StatusBarIconRuntime {
             id(context, "big_time") -> "notification_big"
             id(context, "date_time") -> "notification_small"
             id(context, "normal_control_center_date_view") -> "control_center"
-            id(context, "horizontal_time") -> "horizontal"
+            // 横屏时钟格式只对手机开放；折叠屏/平板走系统默认格式。
+            id(context, "horizontal_time") ->
+                if (DeviceContext.current.type == DeviceType.PHONE) "horizontal" else null
             // pad_clock 只在平板由 ViewStub 展开，独立显示“月份 日期 星期”。
             id(context, "pad_clock") -> if (isTablet(context)) "pad_clock" else null
             else -> null
@@ -951,8 +1237,14 @@ internal object StatusBarIconRuntime {
         private var capturedNativeIgnored: List<String>? = null
         /** 每个 slot 在模块首次接管前的 ignored 归属；用于从自定义模式回到 SYSTEM 时还原。 */
         private val nativeIgnoredBySlot = HashMap<String, Boolean>()
+        /** 只记录模块自己加进 ignoredSlots 的 slot，SYSTEM 时只撤销这些，绝不误删原生忽略。 */
+        private val moduleIgnored = HashSet<String>()
         /** 控制器级 mIconHideList 的原生归属；它同时作用于状态栏和 CC fake 图标组。 */
         private val nativeHideBySlot = HashMap<String, Boolean>()
+        /** 只记录模块自己加进 mIconHideList 的 slot；SYSTEM 时只撤销这些。 */
+        private val moduleHidden = HashSet<String>()
+        /** 原生状态栏/控制中心各自使用的 slot 黑名单；这是系统自己控制显隐的入口。 */
+        /** 每个容器首次接管前的 ignoredSlots，保留 mini 模式等原生额外项。 */
         private val transformed = IdentityHashMap<View, Boolean>()
         private val spaced = IdentityHashMap<View, Boolean>()
         private val aligned = IdentityHashMap<View, String>()
@@ -961,6 +1253,7 @@ internal object StatusBarIconRuntime {
         private var lastCc = false
         private var lastMaxNotifications = -1
         private var lastNotificationCount = -1
+        private var lastAlarmRefresh = 0L
         private var currentSnapshot: StatusBarIconSnapshot? = null
         private var preDraw: ViewTreeObserver.OnPreDrawListener? = null
         private var refreshPosted = false
@@ -1045,7 +1338,7 @@ internal object StatusBarIconRuntime {
                 },
             )
 
-            // 控制器级隐藏列表是状态栏与控制中心 fake 图标组共用的入口。
+            // 回退到上次提交的显示逻辑：控制器 hide list + 按容器逐 View 同步。
             applyGlobalHidden(snapshot, cc, evaluator)
             applySystemIcons(statusIcons, snapshot, cc, evaluator)
             applyGroupVisibility(snapshot, cc, evaluator)
@@ -1087,19 +1380,46 @@ internal object StatusBarIconRuntime {
                 val nativeHidden = nativeHideBySlot.getOrPut(slot) {
                     hideListContains(hideList, slot)
                 }
-                // SYSTEM 恢复原生成员关系；自定义模式由 display 决定，隐藏/显示都覆盖原生。
-                val desired = if (customDisplay) {
-                    hidden(component, config, cc, evaluator)
-                } else {
-                    nativeHidden
-                }
                 val current = hideListContains(hideList, slot)
-                if (desired && !current) {
-                    runCatching { Reflect.callMethod(hideList, "add", slot) }
-                    changed = true
-                } else if (!desired && current) {
-                    runCatching { Reflect.callMethod(hideList, "remove", slot) }
-                    changed = true
+                if (customDisplay) {
+                    val display = displayOf(config)
+                    val surfaceMode = display == StatusBarIconMode.ALWAYS.value ||
+                        display == StatusBarIconMode.CC_ONLY_SHOW.value ||
+                        display == StatusBarIconMode.CC_ONLY_HIDE.value
+                    // 这三个模式按状态栏/CC 宿主分别显隐；绝不能写控制器级
+                    // hide list，否则会把另一个宿主也一起隐藏。
+                    val desired = if (surfaceMode) {
+                        false
+                    } else {
+                        display == StatusBarIconMode.HIDDEN.value ||
+                            (display.startsWith("condition:") &&
+                                hidden(component, config, cc, evaluator))
+                    }
+                    if (desired) {
+                        moduleHidden += slot
+                        if (!current) {
+                            runCatching { Reflect.callMethod(hideList, "add", slot) }
+                            changed = true
+                        }
+                    } else {
+                        moduleHidden.remove(slot)
+                        if (current) {
+                            runCatching { Reflect.callMethod(hideList, "remove", slot) }
+                            changed = true
+                        }
+                    }
+                } else if (nativeHidden) {
+                    // SYSTEM 下恢复原生隐藏；原生后续动态加入的隐藏项保持不动。
+                    if (!current) {
+                        runCatching { Reflect.callMethod(hideList, "add", slot) }
+                        changed = true
+                    }
+                } else if (slot in moduleHidden) {
+                    moduleHidden.remove(slot)
+                    if (current) {
+                        runCatching { Reflect.callMethod(hideList, "remove", slot) }
+                        changed = true
+                    }
                 }
             }
             if (!changed) return
@@ -1123,6 +1443,13 @@ internal object StatusBarIconRuntime {
             val liveGroups = iconGroups.mapNotNull { it.get() }.filter { it.isAttachedToWindow }
             if (liveGroups.isEmpty()) return
             liveGroups.forEach { group ->
+                val currentIgnored = currentIgnoredSlots(group).toMutableList()
+                val localIgnored = groupModuleIgnored.getOrPut(group) { HashSet() }
+                var ignoredChanged = false
+                // 过渡 fake 组跟随普通状态栏，而不是控制中心；正常 CC 头才用 CC 语义。
+                val fake = isFakeControlCenterGroup(group)
+                val center = isControlCenterGroup(group) && !fake
+                val surfaceCc = if (fake) false else cc
                 for (i in 0 until group.childCount) {
                     val child = group.getChildAt(i)
                     val slot = runCatching {
@@ -1131,6 +1458,30 @@ internal object StatusBarIconRuntime {
                     val component = StatusBarIconRegistry.right.firstOrNull { it.slot == slot }
                         ?: continue
                     val config = snapshot.config(component.id)
+                    val display = displayOf(config)
+                    // 仅控制中心显示/隐藏时，单靠 View.GONE 仍会在容器里留下
+                    // 一个 iconSize 宽的占位；必须把 slot 加进该容器的
+                    // ignoredSlots，onLayout 才会真正跳过它。
+                    val surfaceHide = when (display) {
+                        StatusBarIconMode.CC_ONLY_SHOW.value -> !center
+                        StatusBarIconMode.CC_ONLY_HIDE.value -> center
+                        else -> null
+                    }
+                    if (surfaceHide != null) {
+                        if (surfaceHide) {
+                            localIgnored += slot
+                            if (slot !in currentIgnored) {
+                                currentIgnored += slot
+                                ignoredChanged = true
+                            }
+                        } else if (localIgnored.remove(slot)) {
+                            currentIgnored.remove(slot)
+                            ignoredChanged = true
+                        }
+                    } else if (localIgnored.remove(slot)) {
+                        currentIgnored.remove(slot)
+                        ignoredChanged = true
+                    }
                     // 控制中心 fake 组与状态栏组共用同一份几何/字重配置。
                     applyGeometry(child, config)
                     if (component.textual) {
@@ -1149,14 +1500,14 @@ internal object StatusBarIconRuntime {
                         }
                         continue
                     }
-                    val hide = hidden(component, config, cc, evaluator)
+                    val hide = hidden(component, config, surfaceCc, evaluator)
                     if (hide) {
                         groupHidden[child] = true
                         if (child.visibility != View.GONE) child.visibility = View.GONE
                     } else {
                         val forceVisible = config.mode == StatusBarIconMode.ALWAYS ||
-                            (config.mode == StatusBarIconMode.CC_ONLY_SHOW && cc) ||
-                            (config.mode == StatusBarIconMode.CC_ONLY_HIDE && !cc) ||
+                            (config.mode == StatusBarIconMode.CC_ONLY_SHOW && surfaceCc) ||
+                            (config.mode == StatusBarIconMode.CC_ONLY_HIDE && !surfaceCc) ||
                             config.display.startsWith("condition:")
                         if ((groupHidden.remove(child) == true || forceVisible) &&
                             nativeIconVisible(child)
@@ -1165,6 +1516,22 @@ internal object StatusBarIconRuntime {
                         }
                     }
                 }
+                // 图标暂时消失（VPN 断开等）时清掉模块残留的 ignored，避免下次
+                // 重新出现时占位仍在。
+                localIgnored.toList().forEach { slot ->
+                    if (findChildBySlot(group, slot) == null) {
+                        localIgnored.remove(slot)
+                        currentIgnored.remove(slot)
+                        ignoredChanged = true
+                    }
+                }
+                if (ignoredChanged) {
+                    runCatching {
+                        Reflect.callMethod(group, "setIgnoredSlots", currentIgnored.toList())
+                        group.requestLayout()
+                    }
+                }
+                if (localIgnored.isEmpty()) groupModuleIgnored.remove(group)
             }
         }
 
@@ -1172,6 +1539,43 @@ internal object StatusBarIconRuntime {
             (config.display.isNotBlank() && config.display != StatusBarIconMode.SYSTEM.value) ||
                 config.mode != StatusBarIconMode.SYSTEM ||
                 config.logic != StatusBarIconLogic.DEFAULT
+
+        private fun displayOf(config: StatusBarIconComponentConfig): String = when {
+            config.display.isNotBlank() -> config.display
+            config.logic == StatusBarIconLogic.CUSTOM &&
+                config.condition != StatusBarIconCondition.NONE ->
+                "condition:${config.condition.value}"
+            else -> config.mode.value
+        }
+
+        private fun isInsideControlCenter(view: View): Boolean {
+            var parent = view.parent
+            while (parent is View) {
+                if (parent.javaClass.simpleName.contains("ControlCenter")) return true
+                parent = parent.parent
+            }
+            return false
+        }
+
+        private fun isControlCenterGroup(group: ViewGroup): Boolean {
+            var parent = group.parent
+            while (parent is View) {
+                if (parent.javaClass.simpleName.contains("ControlCenter")) return true
+                parent = parent.parent
+            }
+            return false
+        }
+
+        private fun isFakeControlCenterGroup(group: ViewGroup): Boolean {
+            var parent = group.parent
+            while (parent is View) {
+                if (parent.javaClass.simpleName == "ControlCenterFakeStatusIcons") return true
+                parent = parent.parent
+            }
+            return false
+        }
+
+
 
         private fun restoreGlobalHidden() {
             if (nativeHideBySlot.isEmpty()) return
@@ -1205,6 +1609,13 @@ internal object StatusBarIconRuntime {
             }
         }
 
+        /**
+         * 采用系统自己的 slot 黑名单，而不是逐个 View 强制 VISIBLE/GONE。
+         *
+         * MiuiIconManagerUtils.RIGHT_BLOCK_LIST / CONTROL_CENTER_BLOCK_LIST 是
+         * 状态栏和 CC 两套容器各自读取的原生列表；系统默认路径也走它们。
+         * 只改这两个列表，CC 正常头/fake 组由原生选择，模块不重复点亮图标。
+         */
         private fun applySystemIcons(
             group: ViewGroup?,
             snapshot: StatusBarIconSnapshot,
@@ -1225,26 +1636,37 @@ internal object StatusBarIconRuntime {
                 val nativeWasIgnored = nativeIgnoredBySlot.getOrPut(slot) {
                     slot in currentIgnored
                 }
-                val customDisplay = config.display.isNotBlank() &&
-                    config.display != StatusBarIconMode.SYSTEM.value ||
-                    config.mode != StatusBarIconMode.SYSTEM ||
-                    config.logic != StatusBarIconLogic.DEFAULT
-                when {
-                    hidden(component, config, cc, evaluator) -> {
+                val display = displayOf(config)
+                val customDisplay = hasCustomDisplay(config)
+                val isCondition = display.startsWith("condition:")
+                // ignoredSlots 是控制器级、状态栏与 CC fake 组共用的。CC_ONLY_* 和
+                // ALWAYS 不能把 slot 加进去，否则 CC 里的图标也会一起被忽略。
+                val globalHide = display == StatusBarIconMode.HIDDEN.value ||
+                    (isCondition && hidden(component, config, cc, evaluator))
+                val surfaceOnly = display == StatusBarIconMode.CC_ONLY_SHOW.value ||
+                    display == StatusBarIconMode.CC_ONLY_HIDE.value
+                if (surfaceOnly) {
+                    // ignoredSlots 由 applyGroupVisibility 按状态栏/CC 宿主分别维护；
+                    // 这里再改会把另一个宿主的占位状态覆盖掉。
+                } else when {
+                    globalHide -> {
                         if (slot !in ignored) ignored += slot
+                        moduleIgnored += slot
                     }
                     !customDisplay -> {
-                        // SYSTEM 完全还原原生归属，不能把模块加/删过的 slot 留在当前列表。
+                        // SYSTEM 只撤销模块自己加的 ignored，绝不误删原生忽略（例如 zen）。
                         if (nativeWasIgnored) {
                             if (slot !in ignored) ignored += slot
-                        } else {
+                        } else if (slot in moduleIgnored) {
                             ignored.remove(slot)
+                            moduleIgnored.remove(slot)
                         }
                     }
                     else -> {
                         // 原生没有图标内容时保留 ignored，避免“有占位但不可见”。
                         if (isIconVisible(child)) {
                             ignored.remove(slot)
+                            moduleIgnored.remove(slot)
                         } else if (nativeWasIgnored) {
                             if (slot !in ignored) ignored += slot
                         }
@@ -1267,16 +1689,27 @@ internal object StatusBarIconRuntime {
                 val config = snapshot.config(component.id)
                 trackedIds[child] = component.id
                 val wasHidden = lastHidden[child] == true
-                val hide = hidden(component, config, cc, evaluator) ||
-                    (component.id == StatusBarIconRegistry.NETWORK_SPEED && isSlowSpeed(child, config))
+                val display = displayOf(config)
+                val isCondition = display.startsWith("condition:")
+                val conditionHidden = isCondition && hidden(component, config, cc, evaluator)
+                // applySystemIcons 只处理真实状态栏组；CC 组由 applyGroupVisibility
+                // 按宿主分别处理。cc 展开时真实状态栏必须让位，避免和 CC 头重复。
+                val hide = when {
+                    display == StatusBarIconMode.HIDDEN.value || conditionHidden -> true
+                    display == StatusBarIconMode.CC_ONLY_SHOW.value -> true
+                    display == StatusBarIconMode.CC_ONLY_HIDE.value -> false
+                    display == StatusBarIconMode.ALWAYS.value -> cc
+                    isCondition -> cc
+                    else -> false
+                } || (component.id == StatusBarIconRegistry.NETWORK_SPEED && isSlowSpeed(child, config))
                 lastHidden[child] = hide
                 val iconVisible = isIconVisible(child)
-                val forceVisible = !hide && iconVisible && (
-                    config.mode == StatusBarIconMode.ALWAYS ||
-                        (config.mode == StatusBarIconMode.CC_ONLY_SHOW && cc) ||
-                        (config.mode == StatusBarIconMode.CC_ONLY_HIDE && !cc) ||
-                        config.display.startsWith("condition:")
-                    )
+                val forceVisible = !hide && iconVisible && when {
+                    display == StatusBarIconMode.CC_ONLY_HIDE.value -> true
+                    display == StatusBarIconMode.ALWAYS.value -> !cc
+                    isCondition -> !cc
+                    else -> false
+                }
                 val wasForced = forcedVisible[child] == true
                 forcedVisible[child] = forceVisible
                 if (forceVisible) {
@@ -1420,15 +1853,35 @@ internal object StatusBarIconRuntime {
             val config = snapshot.config(id)
             trackedIds[view] = id
             val baseView = capture(view)
-            val hide = hidden(StatusBarIconRegistry.byId(id)!!, config, cc, evaluator)
+            val display = displayOf(config)
+            val isCondition = display.startsWith("condition:")
+            // 电池在状态栏和 CC 头各有一套宿主；特殊宿主显隐必须按所在宿主判断。
+            val centerHost = id == StatusBarIconRegistry.BATTERY && isInsideControlCenter(view)
+            val conditionHidden = isCondition && hidden(
+                StatusBarIconRegistry.byId(id)!!,
+                config,
+                if (centerHost) false else cc,
+                evaluator,
+            )
+            // 这些是真实状态栏里的独立宿主；CC 展开时同样要让位给 CC 自己的
+            // 时间/通知/隐私区域，避免同一个宿主在两层都亮。
+            val hide = when {
+                display == StatusBarIconMode.HIDDEN.value || conditionHidden -> true
+                display == StatusBarIconMode.CC_ONLY_SHOW.value -> !centerHost
+                display == StatusBarIconMode.CC_ONLY_HIDE.value -> centerHost
+                display == StatusBarIconMode.ALWAYS.value -> if (centerHost) false else cc
+                isCondition -> if (centerHost) false else cc
+                else -> false
+            }
             val wasHidden = lastHidden[view] == true
             lastHidden[view] = hide
-            val forceVisible = !hide && hasVisibleContent(view, id) && (
-                config.mode == StatusBarIconMode.ALWAYS ||
-                    (config.mode == StatusBarIconMode.CC_ONLY_SHOW && cc) ||
-                    (config.mode == StatusBarIconMode.CC_ONLY_HIDE && !cc) ||
-                    config.display.startsWith("condition:")
-                )
+            val forceVisible = !hide && hasVisibleContent(view, id) && when {
+                display == StatusBarIconMode.CC_ONLY_SHOW.value -> centerHost
+                display == StatusBarIconMode.CC_ONLY_HIDE.value -> !centerHost
+                display == StatusBarIconMode.ALWAYS.value -> centerHost || !cc
+                isCondition -> centerHost || !cc
+                else -> false
+            }
             val wasForced = forcedVisible[view] == true
             forcedVisible[view] = forceVisible
             when {
@@ -1459,16 +1912,56 @@ internal object StatusBarIconRuntime {
             val gapEnd = (config.gapEnd.coerceIn(-16f, 32f) * density).toInt()
             val gapCustom = gapStart != 0 || gapEnd != 0
             val wasSpaced = spaced[view] == true
-            if (!gapCustom && !wasSpaced) return
-            spaced[view] = gapCustom
-            // SystemUI 的状态栏图标使用自绘 onLayout，margin 不参与定位；
-            // padding 会同时进入子 View 宽度与父容器的手动布局计算，左右间距才真正生效。
-            val start = (baseView.paddingStart + gapStart).coerceAtLeast(0)
-            val end = (baseView.paddingEnd + gapEnd).coerceAtLeast(0)
-            if (view.paddingStart != start || view.paddingEnd != end) {
-                view.setPaddingRelative(start, view.paddingTop, end, view.paddingBottom)
+            if (!gapCustom) {
+                if (wasSpaced) {
+                    view.minimumWidth = baseView.minimumWidth
+                    (view as? LinearLayout)?.gravity = baseView.layoutGravity
+                    view.translationX = baseView.translationX
+                    view.requestLayout()
+                }
+                spaced[view] = false
+                gapStates.remove(view)
+                gapBaseWidths.remove(view)
+                gapDeferred.remove(view)
+                return
+            }
+            // 不能用 padding 做左右间距：MiuiStatusIconContainer.onLayout 会把
+            // padding 再加一次到子 View 宽度上，导致左边距同时撑大右侧、右边距
+            // 只撑大右侧。改为“最小宽度占位 + 内容位移”：
+            //   占位宽 = 图标原始宽 + gapStart + gapEnd
+            //   内容左移/右移 = (gapStart - gapEnd) / 2
+            // 这样左右间距才真正独立，且不需要新增任何子 View。
+            val baseWidth = gapBaseWidths[view] ?: run {
+                val measured = view.measuredWidth.takeIf { it > 0 } ?: view.width
+                if (measured <= 0) {
+                    if (gapDeferred.put(view, true) == null) {
+                        view.post {
+                            gapDeferred.remove(view)
+                            refreshAll()
+                        }
+                    }
+                    return
+                }
+                gapBaseWidths[view] = measured
+                measured
+            }
+            val target = (baseWidth + gapStart + gapEnd).coerceAtLeast(baseWidth)
+            if (view.minimumWidth != target) {
+                view.minimumWidth = target
                 view.requestLayout()
             }
+            if (view is LinearLayout) {
+                // NetworkSpeedView 这类横向 LinearLayout 的子内容默认从 START 排，
+                // 仅放大 minimumWidth 只会增加右侧空白；把它改为水平居中，
+                // 才能让“内容位移”同时作用于左右两侧。
+                val centered = (baseView.layoutGravity and Gravity.VERTICAL_GRAVITY_MASK) or
+                    Gravity.CENTER_HORIZONTAL
+                if (view.gravity != centered) view.gravity = centered
+            }
+            val offset = (gapStart - gapEnd) / 2f
+            gapStates[view] = GapState(baseView.translationX, offset)
+            view.translationX = baseView.translationX + offset
+            spaced[view] = true
         }
 
         private fun applyTransforms(view: View, config: StatusBarIconComponentConfig) {
@@ -1501,7 +1994,9 @@ internal object StatusBarIconRuntime {
                 marginEnd = params?.marginEnd ?: 0,
                 paddingStart = view.paddingStart,
                 paddingEnd = view.paddingEnd,
+                minimumWidth = view.minimumWidth,
                 gravity = (view as? TextView)?.gravity ?: 0,
+                layoutGravity = (view as? LinearLayout)?.gravity ?: 0,
                 textAlignment = (view as? TextView)?.textAlignment ?: View.TEXT_ALIGNMENT_GRAVITY,
             )
         }
@@ -1528,6 +2023,8 @@ internal object StatusBarIconRuntime {
                         value.paddingEnd,
                         view.paddingBottom,
                     )
+                    view.minimumWidth = value.minimumWidth
+                    (view as? LinearLayout)?.gravity = value.layoutGravity
                     if (view is TextView) {
                         view.gravity = value.gravity
                         view.textAlignment = value.textAlignment
@@ -1548,17 +2045,33 @@ internal object StatusBarIconRuntime {
             }
             originalBlocked.clear()
             restoreGlobalHidden()
+            notificationMaxBases.keys.toList().forEach(::applyNotificationLimit)
             groupHidden.forEach { (view, _) ->
                 runCatching {
                     view.visibility = if (nativeIconVisible(view)) View.VISIBLE else View.GONE
                 }
             }
             groupHidden.clear()
+            groupModuleIgnored.forEach { (group, slots) ->
+                val current = currentIgnoredSlots(group).toMutableList()
+                if (current.removeAll(slots)) {
+                    runCatching {
+                        Reflect.callMethod(group, "setIgnoredSlots", current.toList())
+                        group.requestLayout()
+                    }
+                }
+            }
+            groupModuleIgnored.clear()
             nativeHideBySlot.clear()
             nativeIgnoredBySlot.clear()
+            moduleIgnored.clear()
+            moduleHidden.clear()
             aligned.clear()
             transformed.clear()
             spaced.clear()
+            gapStates.clear()
+            gapBaseWidths.clear()
+            gapDeferred.clear()
             forcedVisible.clear()
             lastHidden.clear()
             val native = nativeIgnoredSlots()
@@ -1603,6 +2116,23 @@ internal object StatusBarIconRuntime {
                 if (force && view.visibility != View.VISIBLE) view.visibility = View.VISIBLE
             }
             val snapshot = currentSnapshot ?: return
+            // 闹钟条件依赖“距离下次响铃还有多久”，系统广播偶发丢失时不能一直用
+            // 旧结果。仅在确实启用该条件时低频重算，避免无意义的全量刷新。
+            val expectsAlarm = StatusBarIconRegistry.right.any { component ->
+                component.conditions.contains(StatusBarIconCondition.ALARM_WITHIN) &&
+                    snapshot.display(component.id) ==
+                    "condition:${StatusBarIconCondition.ALARM_WITHIN.value}"
+            }
+            if (!expectsAlarm) {
+                lastAlarmRefresh = 0L
+            } else {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastAlarmRefresh >= 15_000L) {
+                    lastAlarmRefresh = now
+                    refresh()
+                    return
+                }
+            }
             trackedIds.forEach { (view, id) ->
                 applyTransforms(view, snapshot.config(id))
                 applyAlignmentOffset(view, id, snapshot.config(id))
@@ -1636,7 +2166,6 @@ internal object StatusBarIconRuntime {
                     else -> return
                 }
                 val state = speedStyles[view] ?: return
-                if (config.speedStyle == "inline") return
                 val container = state.container ?: return
                 if (container.width <= 0) return
                 for (text in listOf(state.numberText, state.unitText)) {
@@ -1647,10 +2176,11 @@ internal object StatusBarIconRuntime {
                 }
                 return
             }
+            val gap = gapStates[view]?.offset ?: 0f
             if (config.align == "system") {
                 val baseView = base[view]
-                if (baseView != null && view.translationX != baseView.translationX) {
-                    view.translationX = baseView.translationX
+                if (baseView != null && view.translationX != baseView.translationX + gap) {
+                    view.translationX = baseView.translationX + gap
                 }
                 return
             }
@@ -1661,13 +2191,13 @@ internal object StatusBarIconRuntime {
                 else -> 0f
             }
             if (sign == 0f) {
-                view.translationX = baseView.translationX
+                view.translationX = baseView.translationX + gap
                 return
             }
             if (id == StatusBarIconRegistry.CLOCK || id == StatusBarIconRegistry.PAD_CLOCK) {
                 val text = view as? TextView ?: return
                 val spare = (view.width - text.paint.measureText(text.text.toString())).coerceAtLeast(0f)
-                view.translationX = baseView.translationX + sign * spare / 2f
+                view.translationX = baseView.translationX + gap + sign * spare / 2f
                 return
             }
         }
@@ -1727,16 +2257,9 @@ internal object StatusBarIconRuntime {
 
         private fun applyNotificationMax(container: ViewGroup?, snapshot: StatusBarIconSnapshot) {
             container ?: return
-            val max = snapshot.config(StatusBarIconRegistry.NOTIFICATIONS).maxNotifications
-            runCatching {
-                val current = (Reflect.getObjectField(container, "mMaxIcons") as? Int) ?: -1
-                if (current == max) {
-                    lastMaxNotifications = max
-                    return
-                }
-                Reflect.callMethod(container, "setMaxIconsAmount", max)
-                lastMaxNotifications = max
-            }
+            lastMaxNotifications =
+                snapshot.config(StatusBarIconRegistry.NOTIFICATIONS).maxNotifications
+            StatusBarIconRuntime.applyNotificationLimit(container)
         }
 
         private fun controlCenterExpanded(): Boolean {
@@ -1881,6 +2404,14 @@ internal object StatusBarIconRuntime {
         }
     }
 
+    private data class TrafficSample(
+        val time: Long,
+        val tx: Long,
+        val rx: Long,
+        val down: Long,
+        val up: Long,
+    )
+
     private data class SpeedStyleState(
         val container: FrameLayout?,
         val numberText: TextView,
@@ -1914,7 +2445,14 @@ internal object StatusBarIconRuntime {
         val marginEnd: Int,
         val paddingStart: Int,
         val paddingEnd: Int,
+        val minimumWidth: Int,
         val gravity: Int,
+        val layoutGravity: Int,
         val textAlignment: Int,
+    )
+
+    private data class GapState(
+        val baseTranslationX: Float,
+        val offset: Float,
     )
 }

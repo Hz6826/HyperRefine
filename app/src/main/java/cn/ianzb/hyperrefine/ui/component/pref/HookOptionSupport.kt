@@ -48,8 +48,13 @@ fun rememberDependencyEnabled(spec: OptionSpec): Boolean {
         val dependencyKey = current.dependsOn ?: return true
         if (!visited.add(dependencyKey)) return true
         val dependencySpec = OptionRegistry.find(dependencyKey) ?: return true
-        val dependencyValue = ConfigState.bool(dependencyKey, dependencySpec.defaultBoolean)
-        if (current.dependsOnValue != dependencyValue) return false
+        if (current.dependsOnValues.isNotEmpty()) {
+            val value = ConfigState.string(dependencyKey, dependencySpec.defaultString)
+            if (value !in current.dependsOnValues) return false
+        } else {
+            val dependencyValue = ConfigState.bool(dependencyKey, dependencySpec.defaultBoolean)
+            if (current.dependsOnValue != dependencyValue) return false
+        }
         current = dependencySpec
     }
 }
