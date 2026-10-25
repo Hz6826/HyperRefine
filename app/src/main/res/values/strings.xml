@@ -172,6 +172,9 @@
     <string name="sosc_split_peek_transition_summary">拖向 1:9 时小窗平滑移出屏幕；点击离屏小窗会先把它移回屏幕内</string>
     <string name="mulwin_caption_both_directions">把手菜单同时显示双向分屏</string>
     <string name="mulwin_caption_both_directions_summary">「···」菜单同时显示左右与上下两对分屏按钮</string>
+    <string name="section_freeform_window">小窗</string>
+    <string name="sosc_disable_corner_freeform">禁用角落拖拽无极小窗</string>
+    <string name="sosc_disable_corner_freeform_summary">从全屏应用左下 / 右下角拖动不再拉起无极小窗；小窗自身的四角缩放不受影响</string>
     <string name="feature_glass">柔光玻璃</string>
 
     <string name="section_security_center">安全服务</string>

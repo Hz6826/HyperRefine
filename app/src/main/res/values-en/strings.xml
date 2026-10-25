@@ -172,6 +172,9 @@
     <string name="sosc_split_peek_transition_summary">Drag toward 1:9: the small window slides off smoothly; tapping it first brings it back on screen</string>
     <string name="mulwin_caption_both_directions">Show both split-screen orientations in the “···” menu</string>
     <string name="mulwin_caption_both_directions_summary">Show both side-by-side and top-and-bottom split-screen buttons in the “···” menu</string>
+    <string name="section_freeform_window">Freeform windows</string>
+    <string name="sosc_disable_corner_freeform">Disable corner drag to freeform</string>
+    <string name="sosc_disable_corner_freeform_summary">Dragging from a full-screen app’s bottom-left or bottom-right corner no longer opens a freeform window; resizing a freeform window from its corners still works</string>
     <string name="feature_glass">Soft glass</string>
 
     <string name="section_security_center">Security tools</string>

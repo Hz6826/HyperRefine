@@ -461,12 +461,8 @@ fun StatusBarIconRow(
         enabled = enabled,
         onClick = onOpen,
         startAction = {
-            Box(modifier = Modifier.padding(end = 12.dp).alpha(if (enabled) 1f else 0.45f)) {
-                StatusBarIconPreview(component)
-            }
-        },
-        endActions = {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 抓手放到最左侧，右手滑动页面时不会误触拖动。
                 if (dragHandleModifier != null) {
                     val dragLabel = stringResource(R.string.sb_icon_drag_handle)
                     Box(
@@ -495,15 +491,20 @@ fun StatusBarIconRow(
                             }
                         }
                     }
+                    Spacer(Modifier.width(4.dp))
                 }
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    imageVector = MiuixIcons.ChevronForward,
-                    contentDescription = null,
-                    tint = actionColor,
-                    modifier = Modifier.size(16.dp),
-                )
+                Box(modifier = Modifier.padding(end = 12.dp).alpha(if (enabled) 1f else 0.45f)) {
+                    StatusBarIconPreview(component)
+                }
             }
+        },
+        endActions = {
+            Icon(
+                imageVector = MiuixIcons.ChevronForward,
+                contentDescription = null,
+                tint = actionColor,
+                modifier = Modifier.size(16.dp),
+            )
         },
     )
 }

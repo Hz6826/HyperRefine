@@ -29,6 +29,9 @@ object SplitScreenKeys {
     /** 1:3 ↔ 1:9 拖拽过渡：小窗移出屏幕的量随分割线位置连续变化，不再跨档位瞬间跳变。 */
     const val SPLIT_PEEK_TRANSITION = "sosc_split_peek_transition"
 
+    /** 禁用全屏应用底部角落（左下 / 右下）拖出无极小窗的手势。 */
+    const val DISABLE_CORNER_FREEFORM = "sosc_disable_corner_freeform"
+
     /** 全屏应用「···」把手菜单同时显示左右与上下两对分屏按钮。 */
     const val CAPTION_BOTH_DIRECTIONS = "mulwin_caption_both_split_directions"
 

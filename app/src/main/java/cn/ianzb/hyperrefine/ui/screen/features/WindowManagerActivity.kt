@@ -18,8 +18,8 @@ import cn.ianzb.hyperrefine.ui.util.pageScrollModifiers
 /**
  * 「窗口管理」二级页（系统界面 → 分屏与窗口）。
  *
- * - 解除分屏方向限制：竖屏也可左右、横屏也可上下
- * - 自定义多分屏数量：总开关 + 数量上限滑块（3–6）
+ * - 分屏：方向限制、多分屏数量、无级比例、比例记忆、1:9 拖拽过渡、把手菜单双向分屏
+ * - 小窗：禁用全屏应用底部角落拖出无极小窗的手势
  */
 class WindowManagerActivity : BaseSubPageActivity() {
 
@@ -34,7 +34,7 @@ class WindowManagerActivity : BaseSubPageActivity() {
         contentPadding: PaddingValues,
     ) {
         val scrollBehavior = LocalSubPageScrollBehavior.current
-        val section = HookSection(
+        val splitSection = HookSection(
             titleRes = R.string.section_split_screen,
             specs = listOf(
                 featureSpec(SplitScreenKeys.UNLOCK_DIRECTION),
@@ -46,6 +46,12 @@ class WindowManagerActivity : BaseSubPageActivity() {
                 featureSpec(SplitScreenKeys.SPLIT_RATIO_MEMORY),
                 featureSpec(SplitScreenKeys.SPLIT_PEEK_TRANSITION),
                 featureSpec(SplitScreenKeys.CAPTION_BOTH_DIRECTIONS),
+            ),
+        )
+        val freeformSection = HookSection(
+            titleRes = R.string.section_freeform_window,
+            specs = listOf(
+                featureSpec(SplitScreenKeys.DISABLE_CORNER_FREEFORM),
             ),
         )
         LazyColumn(
@@ -64,8 +70,13 @@ class WindowManagerActivity : BaseSubPageActivity() {
             contentPadding = contentPadding,
         ) {
             item {
-                HookSectionCard(section) {
-                    section.specs.forEach { HookOptionView(it) }
+                HookSectionCard(splitSection) {
+                    splitSection.specs.forEach { HookOptionView(it) }
+                }
+            }
+            item {
+                HookSectionCard(freeformSection) {
+                    freeformSection.specs.forEach { HookOptionView(it) }
                 }
             }
         }

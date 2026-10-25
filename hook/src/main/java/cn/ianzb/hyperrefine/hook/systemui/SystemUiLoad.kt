@@ -102,6 +102,10 @@ class SystemUiLoad : BaseLoad() {
             CaptionSplitBothDirectionsHook(),
             HookPrefs.getBoolean(SplitScreenKeys.CAPTION_BOTH_DIRECTIONS, false),
         )
+        initHook(
+            DisableCornerFreeformHook(),
+            HookPrefs.getBoolean(SplitScreenKeys.DISABLE_CORNER_FREEFORM, false),
+        )
         // 方向判定兼容层：两个入口任一开启都需要（本身没有配置项）。
         initHook(
             SplitDirectionCompatHook(),
