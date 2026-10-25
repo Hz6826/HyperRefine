@@ -461,22 +461,16 @@ class IconSettingsActivity : BaseSubPageActivity() {
                 "EMMMd",
             )
         }.getOrNull().orEmpty().ifBlank { "E, MMM d" }
-        val timeHint = context.getString(R.string.sb_clock_pattern_summary_system, timePattern)
-        val dateHint = context.getString(R.string.sb_clock_pattern_summary_date, datePattern)
-        val horizontalPattern = "$timePattern $datePattern"
-        val horizontalHint = context.getString(
-            R.string.sb_clock_pattern_summary_horizontal_system,
-            horizontalPattern,
-        )
+        val horizontalPattern = "$timePattern ${spaceBeforeWeekday(datePattern)}"
         return buildList {
-            add(text(StatusBarIconKeys.CLOCK_PATTERN_STATUS, R.string.sb_clock_pattern_status, target, timeHint))
-            add(text(StatusBarIconKeys.CLOCK_PATTERN_NOTIFICATION_BIG, R.string.sb_clock_pattern_notification_big, target, timeHint))
+            add(text(StatusBarIconKeys.CLOCK_PATTERN_STATUS, R.string.sb_clock_pattern_status, target, timePattern))
+            add(text(StatusBarIconKeys.CLOCK_PATTERN_NOTIFICATION_BIG, R.string.sb_clock_pattern_notification_big, target, timePattern))
             add(
                 text(
                     StatusBarIconKeys.CLOCK_PATTERN_NOTIFICATION_SMALL,
                     R.string.sb_clock_pattern_notification_small,
                     target,
-                    dateHint,
+                    datePattern,
                 ),
             )
             add(
@@ -484,7 +478,7 @@ class IconSettingsActivity : BaseSubPageActivity() {
                     StatusBarIconKeys.CLOCK_PATTERN_CONTROL_CENTER,
                     R.string.sb_clock_pattern_control_center,
                     target,
-                    dateHint,
+                    datePattern,
                 ),
             )
             if (includeHorizontal) {
@@ -493,29 +487,44 @@ class IconSettingsActivity : BaseSubPageActivity() {
                         StatusBarIconKeys.CLOCK_PATTERN_HORIZONTAL,
                         R.string.sb_clock_pattern_horizontal,
                         target,
-                        horizontalHint,
+                        horizontalPattern,
                     ),
                 )
             }
             if (includePad) {
-                add(text(StatusBarIconKeys.CLOCK_PATTERN_PAD, R.string.sb_clock_pattern_pad, target, dateHint))
+                add(text(StatusBarIconKeys.CLOCK_PATTERN_PAD, R.string.sb_clock_pattern_pad, target, datePattern))
             }
         }
+    }
+
+    /** 日期与星期之间补一个空格；星期在最前或已有分隔符时保持原样。 */
+    private fun spaceBeforeWeekday(pattern: String): String {
+        val index = pattern.indexOf("EEE")
+        if (index <= 0) return pattern
+        val previous = pattern[index - 1]
+        if (previous.isWhitespace() ||
+            previous == '(' || previous == '（' ||
+            previous == ',' || previous == '，'
+        ) {
+            return pattern
+        }
+        return pattern.substring(0, index) + " " + pattern.substring(index)
     }
 
     private fun text(
         key: String,
         title: Int,
         target: List<String>,
-        summaryText: String,
+        defaultPattern: String,
     ) = OptionSpec(
         key = key,
         type = OptionType.TEXT,
         titleRes = title,
-        summaryRes = R.string.sb_clock_pattern_summary,
-        summaryText = summaryText,
+        defaultString = defaultPattern,
         targetPackages = target,
         dependsOn = StatusBarIconKeys.ENABLED,
+        masterKey = StatusBarIconKeys.clockCustom(key),
+        masterTitleRes = R.string.sb_clock_custom,
     )
 
     private fun clockRefreshSpec() = OptionSpec(
@@ -559,6 +568,7 @@ class IconSettingsActivity : BaseSubPageActivity() {
                 entries = listOf(
                     R.string.sb_speed_style_system to "system",
                     R.string.sb_speed_style_number_only to "number_only",
+                    R.string.sb_speed_style_single to "single_line",
                     R.string.sb_speed_style_dual to "dual_line",
                 ),
             ),

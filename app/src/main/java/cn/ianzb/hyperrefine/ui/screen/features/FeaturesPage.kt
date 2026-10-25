@@ -19,6 +19,7 @@ import cn.ianzb.hyperrefine.hook.miuix.MiuixAppLoad
 import cn.ianzb.hyperrefine.hook.miuix.TopBarKeys
 import cn.ianzb.hyperrefine.hook.misound.AppVolumeKeys
 import cn.ianzb.hyperrefine.hook.passkey.PasskeyKeys
+import cn.ianzb.hyperrefine.hook.systemserver.DarkModeScheduleKeys
 import cn.ianzb.hyperrefine.hook.systemui.AodBatteryStyleHook
 import cn.ianzb.hyperrefine.hook.systemui.AodBottomIconsHook
 import cn.ianzb.hyperrefine.hook.systemui.AodFullScreenKeepHook
@@ -89,6 +90,7 @@ fun FeaturesPageView(
                     specByKey(specs, KEY_AOD),
                     specByKey(specs, KEY_NOTIFICATIONS),
                     specByKey(specs, KEY_WALLPAPER),
+                    specByKey(specs, KEY_DARK_MODE_SCHEDULE),
                     specByKey(specs, KEY_WINDOW_MANAGER),
                 ),
                 onOpen = { context.startActivity(Intent(context, SystemUiActivity::class.java)) },
@@ -317,6 +319,7 @@ const val KEY_BROWSER = "feature_browser"
 const val KEY_NETWORK = "feature_network"
 const val KEY_AOD = "feature_aod"
 const val KEY_WALLPAPER = "feature_wallpaper"
+const val KEY_DARK_MODE_SCHEDULE = DarkModeScheduleKeys.IMMEDIATE
 const val KEY_FIVE_G = FiveGSwitchHook.KEY
 const val KEY_AOD_BATTERY = AodBatteryStyleHook.KEY
 const val KEY_AOD_FULL = AodFullScreenKeepHook.KEY
@@ -856,6 +859,15 @@ internal fun featureSpecs(): List<OptionSpec> {
             sliderDecimals = 0,
             targetPackages = systemUi,
             dependsOn = KEY_WALLPAPER_DIM,
+        ),
+        OptionSpec(
+            key = KEY_DARK_MODE_SCHEDULE,
+            type = OptionType.SWITCH,
+            titleRes = R.string.dark_mode_schedule_immediate,
+            summaryRes = R.string.dark_mode_schedule_immediate_summary,
+            defaultBoolean = false,
+            targetPackages = listOf(DarkModeScheduleKeys.TARGET),
+            showStatus = true,
         ),
         OptionSpec(
             key = KEY_FIVE_G,

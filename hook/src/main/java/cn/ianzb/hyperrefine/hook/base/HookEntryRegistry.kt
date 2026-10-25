@@ -11,6 +11,7 @@ import cn.ianzb.hyperrefine.hook.notification.NotificationLoad
 import cn.ianzb.hyperrefine.hook.passkey.PasskeyLoad
 import cn.ianzb.hyperrefine.hook.packageinstaller.PackageInstallerLoad
 import cn.ianzb.hyperrefine.hook.securitycenter.SecurityCenterLoad
+import cn.ianzb.hyperrefine.hook.systemserver.SystemServerLoad
 import cn.ianzb.hyperrefine.hook.systemui.SystemUiLoad
 import cn.ianzb.hyperrefine.hook.voiceassist.VoiceAssistImeLoad
 import cn.ianzb.hyperrefine.hook.voiceassist.VoiceAssistLoad
@@ -30,6 +31,7 @@ object HookEntryRegistry {
         AssistantLoad(),
         HomeLoad(),
         SystemUiLoad(),
+        SystemServerLoad(),
         NotificationLoad(),
         SecurityCenterLoad(),
         PackageInstallerLoad(),

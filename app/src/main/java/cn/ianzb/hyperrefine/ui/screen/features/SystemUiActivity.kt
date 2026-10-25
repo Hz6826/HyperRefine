@@ -24,6 +24,7 @@ import cn.ianzb.hyperrefine.ui.util.pageScrollModifiers
  * - 音量：控制中心音量条、侧边音量条、多应用音量、音量条布局
  * - 锁屏与息屏：息屏显示
  * - 壁纸：深色模式自动压暗壁纸
+ * - 深色模式：定时切换到点立即生效
  */
 class SystemUiActivity : BaseSubPageActivity() {
 
@@ -73,6 +74,12 @@ class SystemUiActivity : BaseSubPageActivity() {
             titleRes = R.string.section_wallpaper,
             specs = listOf(
                 featureSpec(KEY_WALLPAPER),
+            ),
+        )
+        val darkModeSection = HookSection(
+            titleRes = R.string.section_dark_mode,
+            specs = listOf(
+                featureSpec(KEY_DARK_MODE_SCHEDULE),
             ),
         )
         // 分屏 / 多分屏等窗口能力单独成页；改动需重启系统界面生效。
@@ -130,7 +137,15 @@ class SystemUiActivity : BaseSubPageActivity() {
                 ),
             contentPadding = contentPadding,
         ) {
-            listOf(statusBarSection, controlCenterSection, volumeSection, lockAodSection, wallpaperSection, windowSection).forEach { section ->
+            listOf(
+                statusBarSection,
+                controlCenterSection,
+                volumeSection,
+                lockAodSection,
+                wallpaperSection,
+                darkModeSection,
+                windowSection,
+            ).forEach { section ->
                 item {
                     HookSectionCard(section) {
                         section.specs.forEach { spec ->

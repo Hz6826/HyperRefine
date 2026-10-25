@@ -22,6 +22,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
@@ -35,6 +36,12 @@ fun HookTextCard(
     modifier: Modifier = Modifier,
 ) {
     val enabled = rememberOptionEnabled(spec)
+    val masterKey = spec.masterKey
+    val masterEnabled = if (masterKey != null) {
+        ConfigState.bool(masterKey, spec.masterDefault)
+    } else {
+        true
+    }
     val value = ConfigState.string(spec.key, spec.defaultString)
     var showDialog by remember { mutableStateOf(false) }
     val notSet = stringResource(R.string.hook_text_not_set)
@@ -44,13 +51,26 @@ fun HookTextCard(
         else -> notSet
     }
 
-    ArrowPreference(
-        title = stringResource(spec.titleRes),
-        summary = value.ifEmpty { emptyHint },
-        onClick = { if (enabled) showDialog = true },
-        enabled = enabled,
-        modifier = modifier,
-    )
+    Column(modifier = modifier) {
+        if (masterKey != null) {
+            SwitchPreference(
+                title = stringResource(spec.masterTitleRes.takeIf { it != 0 } ?: spec.titleRes),
+                summary = spec.masterSummaryRes.takeIf { it != 0 }?.let { stringResource(it) },
+                checked = masterEnabled,
+                onCheckedChange = {
+                    ConfigState.set(masterKey, it)
+                    if (it) ensureScopeFor(spec)
+                },
+                enabled = enabled,
+            )
+        }
+        ArrowPreference(
+            title = stringResource(spec.titleRes),
+            summary = value.ifEmpty { spec.defaultString }.ifEmpty { emptyHint },
+            onClick = { if (enabled && masterEnabled) showDialog = true },
+            enabled = enabled && masterEnabled,
+        )
+    }
 
     if (showDialog) {
         TextValueDialog(spec = spec, onDismiss = { showDialog = false })
@@ -82,7 +102,7 @@ private fun TextValueEditor(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val current = ConfigState.string(spec.key, spec.defaultString)
+    val current = ConfigState.string(spec.key, spec.defaultString).ifEmpty { spec.defaultString }
     var input by remember { mutableStateOf(current) }
 
     Column(modifier = modifier) {

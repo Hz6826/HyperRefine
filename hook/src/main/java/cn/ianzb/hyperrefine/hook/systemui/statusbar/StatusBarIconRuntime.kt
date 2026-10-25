@@ -49,6 +49,8 @@ internal object StatusBarIconRuntime {
     private val groupHidden = WeakHashMap<View, Boolean>()
     /** 每个容器由模块临时加入 ignoredSlots 的 slot；只撤销这些，不碰原生归属。 */
     private val groupModuleIgnored = WeakHashMap<ViewGroup, MutableSet<String>>()
+    /** IconManager 的原生 block list；模块只按显示条件过滤，配置变化时重新下发。 */
+    private val iconBlockListBases = WeakHashMap<Any, List<String>>()
 
     /** 注册所有场景的 MiuiClock；1s ticker 直接调用官方 updateTime，让当前场景自行格式化。 */
     private val clockViews = WeakHashMap<TextView, Boolean>()
@@ -116,6 +118,7 @@ internal object StatusBarIconRuntime {
     private val liveOrderRunnable = Runnable { reorderLive() }
     private val refreshRunnable = Runnable {
         refreshPending = false
+        refreshIconBlockLists()
         refreshAll()
     }
 
@@ -171,6 +174,71 @@ internal object StatusBarIconRuntime {
         view ?: return
         batteryViews.removeAll { it.get() == null || it.get() === view }
         batteryViews += WeakReference(view)
+    }
+
+    /**
+     * 过滤 IconManager 的原生 block list。
+     *
+     * 蓝牙设备电量等“系统默认仅控制中心显示”的 slot 写在 `RIGHT_BLOCK_LIST` 里，
+     * 控制中心过渡使用的 `ControlCenterFakeStatusIcons` 会把同一份 block list
+     * 交给临时 `IconManager`。仅在 ignoredSlots/View 可见性上补救没有用：图标
+     * 在 IconManager 里根本没有被创建。这里对 ALWAYS 的 slot 从 block list 中
+     * 剔除，配置变化时再用原生列表重新下发，避免影响其它模式。
+     */
+    fun filterIconBlockList(manager: Any, slots: List<*>): List<String> {
+        val names = slots.mapNotNull { it as? String }
+        if (names.isEmpty()) return names
+        iconBlockListBases.putIfAbsent(manager, names)
+        if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) return names
+        val snapshot = StatusBarIconConfigReader.load()
+        return names.filterNot { slot ->
+            val component = StatusBarIconRegistry.right.firstOrNull { it.slot == slot }
+                ?: return@filterNot false
+            snapshot.config(component.id).display == StatusBarIconMode.ALWAYS.value
+        }
+    }
+
+    /** 配置变化后重新应用 block list；关闭 ALWAYS 时恢复原生列表。 */
+    private fun refreshIconBlockLists() {
+        if (iconBlockListBases.isEmpty()) return
+        iconBlockListBases.entries.toList().forEach { (manager, base) ->
+            runCatching { Reflect.callMethod(manager, "setBlockList", base) }
+        }
+    }
+
+    /**
+     * 新补进临时 IconManager 的图标不会自动收到之前的 onDarkChanged，
+     * 会保留 drawable 默认白色。这里让控制中心头部重新下发当前明暗色。
+     */
+    fun refreshIconTint(manager: Any) {
+        val group = runCatching {
+            Reflect.getObjectField(manager, "mGroup") as? ViewGroup
+        }.getOrNull() ?: return
+        var parent: View? = group.parent as? View
+        var delegate: Any? = null
+        while (parent != null) {
+            if (parent.javaClass.simpleName == "ControlCenterFakeStatusIcons" ||
+                parent.javaClass.simpleName == "ControlCenterStatusBarIcon"
+            ) {
+                delegate = runCatching { Reflect.getObjectField(parent, "delegate") }.getOrNull()
+                break
+            }
+            parent = parent.parent as? View
+        }
+        delegate ?: return
+        // MiuiLightDarkIconManager.setLight 在 mLight/mColor 未变化时会直接 return，
+        // 新增的 child 永远收不到 onDarkChanged。先把 mColor 改成临时值，强制它
+        // 重新遍历整组 child，再恢复为当前颜色。
+        val color = runCatching { Reflect.getObjectField(manager, "mColor") as? Int }
+            .getOrNull() ?: return
+        val light = runCatching { Reflect.getObjectField(manager, "mLight") as? Boolean }
+            .getOrNull() ?: return
+        val useTint = runCatching { Reflect.getObjectField(delegate, "mUseTint") as? Boolean }
+            .getOrNull() ?: true
+        runCatching {
+            Reflect.setObjectField(manager, "mColor", color xor 1)
+            Reflect.callMethod(manager, "setLight", color, light, useTint)
+        }
     }
 
     fun onPreferencesChanged() {
@@ -533,6 +601,11 @@ internal object StatusBarIconRuntime {
             val unit = Reflect.getObjectField(view, "mNetworkSpeedUnit")?.toString().orEmpty().trim()
             val showUnit = config.speedShowUnit
             when (config.speedStyle) {
+                "single_line" -> {
+                    val (down, _) = sampleTraffic(view)
+                    numberText.text = formatSpeed(down, showUnit, config.speedUnitStyle)
+                    unitText.text = ""
+                }
                 "dual_line" -> {
                     val (down, up) = sampleTraffic(view)
                     val downText = formatSpeed(down, showUnit, config.speedUnitStyle)
@@ -568,6 +641,12 @@ internal object StatusBarIconRuntime {
         val unitText = state.unitText
         val size = config.speedFontSize
         val dual = config.speedStyle == "dual_line"
+        val single = config.speedStyle == "single_line"
+        if (single && (!config.fontSizeEnabled || size <= 0f)) {
+            // 单行样式默认用普通数值字号的两倍；用户显式设置字号时才尊重手动值。
+            applySingleLineFontSize(view, state)
+            return
+        }
         if (!config.fontSizeEnabled || size <= 0f) {
             numberText.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.numberTextSize)
             // 双排两行必须同字号；系统原生单位字号更小，这里统一成数值字号。
@@ -589,13 +668,27 @@ internal object StatusBarIconRuntime {
         )
     }
 
+    /** 单行网速只放大到普通数值字号的 2 倍，避免占满整行高度后过大。 */
+    private fun applySingleLineFontSize(view: View, state: SpeedStyleState) {
+        val base = state.numberTextSize.takeIf { it > 0f }
+            ?: TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                14f,
+                view.resources.displayMetrics,
+            )
+        state.numberText.setTextSize(TypedValue.COMPLEX_UNIT_PX, base * 2f)
+    }
+
     private fun applySpeedLayout(view: View, config: StatusBarIconComponentConfig) {
         val state = speedStyles[view] ?: captureSpeedStyle(view)?.also { speedStyles[view] = it } ?: return
         val container = state.container ?: return
         val numberText = state.numberText
         val unitText = state.unitText
         val showUnit = config.speedShowUnit
-        val numberOnly = config.speedStyle == "number_only" || (!showUnit && config.speedStyle == "system")
+        val single = config.speedStyle == "single_line"
+        val numberOnly = config.speedStyle == "number_only" ||
+            single ||
+            (!showUnit && config.speedStyle == "system")
         val dual = config.speedStyle == "dual_line"
 
         numberText.visibility = View.VISIBLE
@@ -942,7 +1035,7 @@ internal object StatusBarIconRuntime {
 
     /**
      * 只对已知系统场景应用自定义格式；未知 MiuiClock 返回 null，避免把通知中心/控制中心
-     * 的时钟误改成状态栏样式。格式为空时也返回 null，保持宿主原生格式。
+     * 的时钟误改成状态栏样式。对应场景未开启自定义开关时也返回 null，保持宿主原生格式。
      */
     fun clockText(context: Context, viewId: Int): CharSequence? {
         if (!HookPrefs.getBoolean(StatusBarIconKeys.ENABLED, false)) return null
@@ -954,19 +1047,18 @@ internal object StatusBarIconRuntime {
 
     private fun clockPattern(context: Context, viewId: Int): String? {
         val scene = clockScene(context, viewId) ?: return null
-        val stored = HookPrefs.getString(clockPatternKey(scene), "").orEmpty().trim()
-        // 横屏系统默认是“系统时间 + 小标题同款月日星期”；留空时动态生成，
-        // 而不是让宿主只显示 HH:mm。旧版本写死的错误默认值也走这里迁移。
-        if (scene == "horizontal" &&
-            (stored.isEmpty() || stored == StatusBarIconKeys.LEGACY_HORIZONTAL_CLOCK_PATTERN)
-        ) {
-            return horizontalClockPattern(context)
+        val patternKey = clockPatternKey(scene)
+        if (!HookPrefs.getBoolean(StatusBarIconKeys.clockCustom(patternKey), false)) return null
+        val stored = HookPrefs.getString(patternKey, "").orEmpty().trim()
+        if (stored.isNotEmpty() && stored != StatusBarIconKeys.LEGACY_HORIZONTAL_CLOCK_PATTERN) {
+            return stored
         }
-        return if (stored.isEmpty()) null else stored
+        // 打开自定义但还没写入格式时，默认值就是当前系统格式；横屏额外带上
+        // 日期与星期之间的空格，避免生成“M月d日周四”这种连在一起的样式。
+        return systemClockPattern(context, scene)
     }
 
-    /** 与小标题日期格式保持一致，使用当前 Locale 的最佳 EMMMd 模式。 */
-    private fun horizontalClockPattern(context: Context): String {
+    private fun systemClockPattern(context: Context, scene: String): String {
         val time = runCatching {
             (android.text.format.DateFormat.getTimeFormat(context) as? SimpleDateFormat)?.toPattern()
         }.getOrNull().orEmpty().ifBlank { "HH:mm" }
@@ -975,8 +1067,26 @@ internal object StatusBarIconRuntime {
                 Locale.getDefault(),
                 "EMMMd",
             )
-        }.getOrNull().orEmpty()
-        return listOf(time, date).filter { it.isNotBlank() }.joinToString(" ")
+        }.getOrNull().orEmpty().ifBlank { "E, MMM d" }
+        return when (scene) {
+            "notification_small", "control_center", "pad_clock" -> date
+            "horizontal" -> "$time ${spaceBeforeWeekday(date)}"
+            else -> time
+        }
+    }
+
+    /** 日期与星期之间补一个空格；星期在最前或已有分隔符时保持原样。 */
+    private fun spaceBeforeWeekday(pattern: String): String {
+        val index = pattern.indexOf("EEE")
+        if (index <= 0) return pattern
+        val previous = pattern[index - 1]
+        if (previous.isWhitespace() ||
+            previous == '(' || previous == '（' ||
+            previous == ',' || previous == '，'
+        ) {
+            return pattern
+        }
+        return pattern.substring(0, index) + " " + pattern.substring(index)
     }
 
     /**
@@ -1173,7 +1283,8 @@ internal object StatusBarIconRuntime {
             StatusBarIconKeys.CLOCK_PATTERN_HORIZONTAL,
             StatusBarIconKeys.CLOCK_PATTERN_PAD,
         ).any { key ->
-            HookPrefs.getString(key, "").orEmpty().any { it == 's' || it == 'S' }
+            HookPrefs.getBoolean(StatusBarIconKeys.clockCustom(key), false) &&
+                HookPrefs.getString(key, "").orEmpty().any { it == 's' || it == 'S' }
         }
         val shouldRun = patternHasSeconds ||
             HookPrefs.getBoolean(StatusBarIconKeys.CLOCK_REFRESH, false)
@@ -2002,6 +2113,7 @@ internal object StatusBarIconRuntime {
         }
 
         private fun restore(root: ViewGroup) {
+            refreshIconBlockLists()
             restoreSpeedStyles()
             base.forEach { (view, value) ->
                 runCatching {

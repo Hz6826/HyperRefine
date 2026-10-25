@@ -35,7 +35,7 @@ object StatusBarIconKeys {
     fun fontSizeEnabled(id: String) = "${PREFIX}${id}_font_size_enabled"
     fun fontSize(id: String) = "${PREFIX}${id}_font_size"
 
-    /** 时钟各系统场景的自定义 SimpleDateFormat 格式；空串保持系统格式。 */
+    /** 时钟各系统场景的自定义 SimpleDateFormat 格式；仅在对应自定义开关开启时生效。 */
     const val CLOCK_PATTERN_STATUS = "${PREFIX}clock_pattern_status"
     const val CLOCK_PATTERN_NOTIFICATION_BIG = "${PREFIX}clock_pattern_notification_big"
     const val CLOCK_PATTERN_NOTIFICATION_SMALL = "${PREFIX}clock_pattern_notification_small"
@@ -45,7 +45,10 @@ object StatusBarIconKeys {
     /** 平板时间右侧的月份/日期/星期，仅在平板显示入口。 */
     const val CLOCK_PATTERN_PAD = "${PREFIX}clock_pattern_pad"
 
-    /** 旧版本曾把横屏默认格式写成该值；仅用于一次性迁移，空值才是系统默认。 */
+    /** 某个时钟场景是否启用自定义格式；关闭时完全跟随系统，不读取/应用格式值。 */
+    fun clockCustom(patternKey: String) = "${patternKey}_custom"
+
+    /** 旧版本曾把横屏默认格式写成该值；仅用于一次性迁移。 */
     const val LEGACY_HORIZONTAL_CLOCK_PATTERN = "HH:mm EEE MMMd"
 
     /** 是否用主线程 1s ticker 驱动所有已注册时钟；没有秒的格式可关闭。 */

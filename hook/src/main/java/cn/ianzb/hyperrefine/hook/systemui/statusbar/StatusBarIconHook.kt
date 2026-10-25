@@ -46,6 +46,11 @@ class StatusBarIconHook : BaseHook() {
             "com.android.systemui.statusbar.phone.ui.IconManager",
             loader,
         )
+        val setBlockList = iconManagerClass.declaredMethods.firstOrNull {
+            it.name == "setBlockList" &&
+                it.parameterCount == 1 &&
+                List::class.java.isAssignableFrom(it.parameterTypes[0])
+        }?.apply { isAccessible = true }
         val onSetIcon = StatusBarMembers.methods(iconManagerClass, "onSetIcon") {
             it.parameterCount == 2
         }
@@ -235,6 +240,27 @@ class StatusBarIconHook : BaseHook() {
             installs += {
                 StatusBarMembers.after(constructor) { param ->
                     guard.run { param.thisObject?.let(StatusBarIconRuntime::sortSlots) }
+                }
+            }
+        }
+        if (setBlockList != null) {
+            installs += {
+                StatusBarMembers.before(setBlockList) { param ->
+                    guard.run {
+                        val manager = param.thisObject ?: return@run
+                        val slots = param.args.getOrNull(0) as? List<*> ?: return@run
+                        param.setArg(
+                            0,
+                            StatusBarIconRuntime.filterIconBlockList(manager, slots),
+                        )
+                    }
+                }
+            }
+            installs += {
+                StatusBarMembers.after(setBlockList) { param ->
+                    guard.run {
+                        param.thisObject?.let(StatusBarIconRuntime::refreshIconTint)
+                    }
                 }
             }
         }

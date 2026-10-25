@@ -246,6 +246,7 @@ object StatusBarIconConfigReader {
     private val SPEED_STYLES = setOf(
         "system",
         "number_only",
+        "single_line",
         "dual_line",
     )
     private val SPEED_ARROW_STYLES = setOf("arrow", "triangle", "none")

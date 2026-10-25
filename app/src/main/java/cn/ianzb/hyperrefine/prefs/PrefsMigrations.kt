@@ -19,6 +19,7 @@ object PrefsMigrations {
 
     private const val MARKER_POSITION_90 = "migration_position_default_90"
     private const val MARKER_HORIZONTAL_CLOCK = "migration_horizontal_clock_empty"
+    private const val MARKER_CLOCK_CUSTOM = "migration_clock_custom_switches"
     private const val MARKER_SPEED_STYLE = "migration_speed_style_v2"
     private const val MARKER_SPEED_OPTIONS_V3 = "migration_speed_options_v3"
 
@@ -26,6 +27,7 @@ object PrefsMigrations {
     fun run() {
         migratePositionDefaultTo90()
         migrateHorizontalClockDefault()
+        migrateClockCustomSwitches()
         migrateSpeedStyle()
         migrateSpeedOptionsV3()
     }
@@ -52,13 +54,36 @@ object PrefsMigrations {
      * 新版本要求留空跟随系统，这里只清除仍等于该旧默认值的存量配置。
      */
     private fun migrateHorizontalClockDefault() {
-        if (PrefsStore.getBoolean(MARKER_HORIZONTAL_CLOCK, false)) return
         val key = StatusBarIconKeys.CLOCK_PATTERN_HORIZONTAL
         if (PrefsStore.getString(key, "") == StatusBarIconKeys.LEGACY_HORIZONTAL_CLOCK_PATTERN) {
             PrefsStore.remove(key)
         }
+        if (PrefsStore.getBoolean(MARKER_HORIZONTAL_CLOCK, false)) return
         PrefsStore.put(MARKER_HORIZONTAL_CLOCK, true)
     }
+
+    /**
+     * 时钟格式从“空值跟随系统”改为“先开自定义开关再写格式”。
+     * 旧安装里已经写过非空格式的，补开对应开关，避免升级后自定义格式失效。
+     */
+    private fun migrateClockCustomSwitches() {
+        if (PrefsStore.getBoolean(MARKER_CLOCK_CUSTOM, false)) return
+        CLOCK_PATTERN_KEYS.forEach { key ->
+            if (PrefsStore.getString(key, "").orEmpty().trim().isNotEmpty()) {
+                PrefsStore.put(StatusBarIconKeys.clockCustom(key), true)
+            }
+        }
+        PrefsStore.put(MARKER_CLOCK_CUSTOM, true)
+    }
+
+    private val CLOCK_PATTERN_KEYS = listOf(
+        StatusBarIconKeys.CLOCK_PATTERN_STATUS,
+        StatusBarIconKeys.CLOCK_PATTERN_NOTIFICATION_BIG,
+        StatusBarIconKeys.CLOCK_PATTERN_NOTIFICATION_SMALL,
+        StatusBarIconKeys.CLOCK_PATTERN_CONTROL_CENTER,
+        StatusBarIconKeys.CLOCK_PATTERN_HORIZONTAL,
+        StatusBarIconKeys.CLOCK_PATTERN_PAD,
+    )
 
     /**
      * 网速旧样式（数值在上/单位在上/仅单位）已经废弃，统一回到系统双行；
