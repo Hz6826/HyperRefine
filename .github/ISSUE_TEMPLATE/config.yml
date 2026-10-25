@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Telegram 群组
+    url: https://t.me/HyperRefine
+    about: 使用问题、讨论与反馈
+  - name: 📖 文档
+    url: https://github.com/Ianzb/HyperRefine#readme
+    about: 提交 Issue 前请先查阅 README 与 docs/ 下的说明
