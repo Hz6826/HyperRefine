@@ -1,0 +1,90 @@
+name: Bug 报告
+description: 报告 HyperRefine 的功能异常、崩溃或兼容性问题
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！提交前请先搜索现有 Issue，并确认已在 LSPosed 中启用模块、重启过目标应用。
+        功能建议请使用「功能请求」模板。
+
+  - type: input
+    id: version
+    attributes:
+      label: HyperRefine 版本
+      description: 可在模块设置页底部查看（如 v1.2.3）
+      placeholder: v1.2.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 受影响的作用域 / 目标应用
+      description: 选择与该问题相关的目标应用（可多选）
+      multiple: true
+      options:
+        - 系统界面（com.android.systemui）
+        - 安全服务 / 安全中心（com.miui.securitycenter）
+        - 设置（com.android.settings）
+        - 系统框架（android / system）
+        - MiLink 服务（com.milink.service）
+        - 小米互联（com.xiaomi.mirror）
+        - 应用包管理组件（com.miui.packageinstaller）
+        - 超级小爱输入法（com.xiaomi.type）
+        - 系统桌面（com.miui.home）
+        - 小米扫码（com.xiaomi.scanner）
+        - 不确定 / 其他
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 系统与设备
+      description: 系统版本、机型与设备类型（手机 / 平板 / 折叠屏），如 HyperOS 4 (Android 15) - 小米 15 - 手机
+      placeholder: HyperOS 4 (Android 15) - 小米 15 - 手机
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简要说明现象、报错信息或异常截图
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤（可选）
+      description: 如果问题能稳定复现，请按顺序列出操作步骤
+      value: |
+        1. 
+        2. 
+        3.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图（可选）
+      description: 可通过 adb logcat -s HyperRefine 抓取日志，或直接粘贴截图
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认事项
+      options:
+        - label: 我已搜索过现有 Issue，确认不是重复问题
+          required: true
+        - label: 我已在 LSPosed 中启用模块，并重启过目标应用 / 设备
+          required: true
+        - label: 我使用的是最新版本
+          required: false
