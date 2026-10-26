@@ -17,6 +17,7 @@ HyperRefine 是基于 MiuixGuiTemplate 的 LSPosed 模块（libxposed API 102 + 
 | 包名 / 图标 / 链接 / 模块元数据等二次开发全量清单 | `docs/CUSTOMIZE.md` |
 | 真机 adb 授权、逆向产物存放、第三方复用合规 | `docs/WORKFLOW.md`（红线，必读） |
 | Rust 原生 Hook | `docs/NATIVE_HOOK.md` |
+| 具体功能实现 / 验证细节（按需） | `docs/features/`、`docs/experimental/`（非通用文档） |
 | 发布 / CI / 签名 | `README.md`「发布与 CI」章节 |
 | 版本变更记录 | `changelog.md` |
 

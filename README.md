@@ -119,7 +119,7 @@ $env:KEY_PASSWORD="你的密钥密码"
 
 # 开发
 
-1. 在 `:hook` 模块 `META-INF/xposed/scope.list` 中声明作用域包名（当前为 `com.android.systemui`、`com.miui.home`）。
+1. 在 `:hook` 模块 `META-INF/xposed/scope.list` 中声明作用域包名（当前覆盖 `system`、`android`、`com.android.systemui` 及多款小米系统应用，完整列表以该文件为准）。
 2. 新建 `BaseLoad` 并在 `HookEntryRegistry` 中登记目标包。
 3. 新建 `BaseHook` 实现具体 Hook 逻辑，必要时用 DexKit 定位成员。
 4. 在 `featureSpecs()`（或自定义注册处）声明 `OptionSpec`，UI 会自动渲染对应组件；子页面功能可用 `HookSubPage` 并入功能页搜索。
@@ -148,9 +148,9 @@ HyperRefine 基于个人 Android 模块开发脚手架 MiuixGuiTemplate 创建�
 
 通知功能独立实现，未引入参考模块的代码、资源或原生库；参考项目的来源与许可证已登记到应用内参考项目分组。
 
-状态栏的 Wi-Fi 活动指示器隐藏、移动网络类型隐藏与双排堆叠信号同样独立实现，参考来源统一登记在应用内致谢页；功能范围与验证见 [状态栏功能说明](docs/STATUSBAR_PORT.md)。
+状态栏的 Wi-Fi 活动指示器隐藏、移动网络类型隐藏与双排堆叠信号同样独立实现，参考来源统一登记在应用内致谢页；功能范围与验证见 [状态栏功能说明](docs/features/STATUSBAR_PORT.md)。
 
-状态栏图标自定义的预览资源（`ic_stat_sys_*`）复用自 GPL-3.0 的 [XiaomiHelper / HyperHelper](https://github.com/HowieHChen/XiaomiHelper)，原始版权与许可见 [资源说明](docs/THIRD_PARTY_ICONS.md)；功能与交互为独立实现。
+状态栏图标自定义的预览资源（`ic_stat_sys_*`）复用自 GPL-3.0 的 [XiaomiHelper / HyperHelper](https://github.com/HowieHChen/XiaomiHelper)，原始版权与许可见 [资源说明](docs/features/THIRD_PARTY_ICONS.md)；功能与交互为独立实现。
 
 <br>
 
