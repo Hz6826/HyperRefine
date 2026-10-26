@@ -15,35 +15,11 @@
 
 </div>
 
-**HyperRefine** 是一个 **LSPosed 模块**项目，基于 [libxposed API 102](https://libxposed.github.io/api/index-all.html) 与 [Miuix](https://github.com/compose-miuix-ui/miuix) Compose 组件库构建，使用 [MiuixGuiTemplate](https://github.com/Ianzb/MiuixGuiTemplate) 脚手架创建，提供完整的 Hook 二次封装接口与可复用 UI 组件。当前 Hook 目标为**系统界面**（`com.android.systemui`）：控制中心音量条 / 亮度条与侧边音量条的百分比数值显示；**安全服务**（`com.miui.securitycenter`）：隐藏快充加速通知；**MiLink 与小米互联**（`com.milink.service` / `com.xiaomi.mirror`）：设备互联三项功能；另预留系统桌面（`com.miui.home`）占位。
+**HyperRefine** 是一个 **LSPosed 模块**项目，基于 [libxposed API 102](https://libxposed.github.io/api/index-all.html) 与 [Miuix](https://github.com/compose-miuix-ui/miuix) Compose 组件库构建，使用 [MiuixGuiTemplate](https://github.com/Ianzb/MiuixGuiTemplate) 脚手架创建，内置完整的 Hook 二次封装接口与可复用 UI 组件，当前包含百种hook功能，不仅合并了一些实用小型模块的功能，还添加了很多原创新功能。
 
 <br>
 
 # 功能
-
-- **通知**（目标 `com.android.systemui` / `com.android.settings` / `system`）— 功能 → 系统界面 → 通知，提供锁屏保留、锁屏显示、悬浮显示、受保护通知修改、重要程度、历史折叠与每应用数量限制七项独立开关，默认均关闭。使用和验证说明见 [通知功能说明](docs/NOTIFICATION_PORT.md)。
-- **应用包管理组件净化（实验性）**（目标 `com.miui.packageinstaller`）— 功能 → 实验性功能 → 应用包管理组件净化，提供推广、风险检测、云配置、安全守护提示、频繁安装检查与安装信息上传控制六项独立开关，默认关闭；保留诊断供反馈。功能代码与资源集中管理，使用现有基础扩展接口，可随整项提交撤回。使用范围与状态含义见 [应用包管理组件净化说明](docs/experimental/packageinstaller/EXPERIMENT.md)。
-- **超级小爱输入法 · 全局高级材质**（目标 `com.xiaomi.type`）— 功能 → 超级小爱输入法：把当前输入框包名加入官方 HyperMaterial 允许表，让所有应用都使用输入法顶部圆角与背景模糊，而不再只限于部分官方应用；默认关闭。实现复用官方材质层，不自行叠加窗口。
-
-**模块功能**（目标应用 `com.android.systemui` / `com.miui.securitycenter`）
-
-- **音量条 / 亮度条百分比数值显示**（适配 HyperOS 4）— 控制中心音量条 / 控制中心亮度条（含二级亮度条）/ 侧边音量条三处独立显示百分比数值
-  - 三处各自独立配置：开关、字号、字重、颜色
-  - 字号 8–24（默认 13）；字重：细体 / 常规 / 中等 / 半粗 / 粗体 / 特粗（默认特粗）
-  - 颜色跟随图标：低值灰色、高值彩色；关闭跟随则固定灰色
-  - 侧边音量条附加：百分比位置（音量区域上方悬浮 / 音量条内部上方）、长按打开音量面板并隐藏三个点按钮（默认关闭）
-- **隐藏快充加速通知**（适配 HyperOS 4，目标 `com.miui.securitycenter`）— 隐藏 90W 及以上快充机型在快充加速时由安全服务发布的快充加速通知（「省电与电池重要通知」类别）；「进入提醒」与「退出提醒」各自独立开关
-- **设备互联**（适配 HyperOS 4，目标 `com.milink.service` / `com.xiaomi.mirror`，移植自 [HyperConnectToolkit](https://github.com/silverpoetry/HyperConnectToolkit)，Apache-2.0）— 功能页「设备互联」二级页集中以下功能，顶栏可一键重启目标服务：
-  - **解锁跨设备通知流转**（仅平板）— 纠正平板本机能力误判，通知点击复用原生 `PIN_APP` 流转路径
-  - **允许平板竖屏流转应用**（仅平板）— 纠正首包横竖尺寸倒置，并允许目标画面按完整方向运行
-  - **MiLink Multi-Channel** — AndroidPad 共享通道上限 1 → 2，需在手机上开启同名选项
-- **Hook 生效状态** — 所有由目标进程安装的 Hook 功能，其配置项副标题显示「已生效 / 未生效」（需重启目标进程后刷新）
-- **横屏融合设备中心右置**（适配 HyperOS 4，仅手机）— 手机横屏时把融合设备中心从控制中心左侧移到右侧（非手机设备上该开关禁用灰显）
-- **缩小融合设备中心设备点击范围**（适配 HyperOS 4）— 把每个设备的点击判定范围缩小到图标本身，点击卡片内空白处改为打开融合设备中心，而不是对应设备
-- **流转卡片玻璃**（适配 HyperOS 4，目标 `com.milink.service`）— 为融合设备中心点击设备后弹出的流转卡片补上系统柔光玻璃，设备不可用（灰色卡片）时不再只有模糊
-- **多级页面搜索** — 功能页搜索支持多级嵌套（如「系统界面 → 音量 → 侧边音量条」），摘要显示父 / 子路径，命中直接打开对应页面
-- **密码 · 通行密钥修复**（目标 `system` / `com.android.settings` / `com.miui.securitycenter` / `com.xiaomi.scanner`）— 功能页「密码」页：修复 HyperOS 通行密钥（Passkey），含系统服务路由、设置项显示、阻止安全中心覆盖、阻止扫码劫持（需启用 Google 基础服务）
-- **浏览器 · 阻止强制小米浏览器**（目标 `android` 框架 + 小米互传 / AI 引擎 / 超级小爱 / 设置 / 应用商店等）— 功能页「浏览器」页：把被强制交给小米浏览器的网页链接改投系统默认浏览器，含跳转拦截、伪装已安装、通知图标替换、复制直达等
 
 **底层框架**（构建于脚手架 MiuixGuiTemplate）
 
@@ -63,10 +39,10 @@
 
 # 系统要求
 
-- 已安装 **LSPosed**（支持 libxposed API 102）
-- Android 15+（minSdk 35）
-- 音量条 / 亮度条百分比功能面向 **HyperOS 4** 系统界面
-- 清空 DexKit 缓存需要 **Root 权限**
+- 已安装 **LSPosed**（支持 libxposed API 102，Native Hook等现代特性）
+- Android 17+（minSdk 35）
+- 所有Hook功能默认仅支持 **HyperOS 4（Android 17）** 系统
+- 需要给予应用 **Root 权限**
 
 <br>
 
@@ -93,8 +69,8 @@ cd HyperRefine
 
 仓库内置 GitHub Actions 工作流：
 
-- **`.github/workflows/ci.yml`** — 推送到 `master`（改动 `app/**`、`hook/**`、Gradle 文件）或提交 PR 时构建 Debug APK，上传为 Actions Artifacts（保留 7 天）。
-- **`.github/workflows/release.yml`** — 推送 `v*.*.*` 标签或手动触发时构建**签名** Release APK，发布到 GitHub Release（Release Notes 取自 `changelog.md` 对应版本段落）并上传 Artifact（保留 30 天）；配置 Telegram 后可自动推送。
+- **`.github/workflows/ci.yml`** — 推送到 `master`（改动 `app/**`、`hook/**`、Gradle 文件）或提交 PR 时构建 Debug APK，上传为 Actions Artifacts（保留 7 天）；配置 Telegram 后可自动推送到测试版分区。
+- **`.github/workflows/release.yml`** — 推送 `v*.*.*` 标签或手动触发时构建**签名** Release APK，发布到 GitHub Release（Release Notes 取自 `changelog.md` 对应版本段落）并上传 Artifact（保留 30 天）；配置 Telegram 后可自动推送到正式版分区。
 
 ## Release 签名配置（二次开发须自行配置）
 
@@ -144,7 +120,7 @@ $env:KEY_PASSWORD="你的密钥密码"
 # 开发
 
 1. 在 `:hook` 模块 `META-INF/xposed/scope.list` 中声明作用域包名（当前为 `com.android.systemui`、`com.miui.home`）。
-2. 新建 `BaseLoad` 并在 `HookEntryRegistry` 中登记目标包（当前为 `SystemUiLoad` → `com.android.systemui`；`HomeLoad` → `com.miui.home` 为占位）。
+2. 新建 `BaseLoad` 并在 `HookEntryRegistry` 中登记目标包。
 3. 新建 `BaseHook` 实现具体 Hook 逻辑，必要时用 DexKit 定位成员。
 4. 在 `featureSpecs()`（或自定义注册处）声明 `OptionSpec`，UI 会自动渲染对应组件；子页面功能可用 `HookSubPage` 并入功能页搜索。
 5. 构建并在 LSPosed 中验证功能生效（启用开关并重启目标应用）。
@@ -188,4 +164,4 @@ HyperRefine 基于个人 Android 模块开发脚手架 MiuixGuiTemplate 创建�
 
 本项目以 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）开源。
 
-本仓库同时包含 Apache-2.0 许可的第三方代码（自 [miuix](https://github.com/compose-miuix-ui/miuix) 等引入的文件保留其原始版权与许可声明）。AGPL-3.0 与 GPL-3.0 兼容（AGPL-3.0 §13）：参考或移植 GPL-3.0 项目（如 [SoundMan](https://github.com/killerprojecte/SoundMan)）时，本项目整体以 AGPL-3.0 授权分发；衍生作品须以 AGPL-3.0 授权公开，并保留应用内「参考与致谢」与 Based on 标注。
+本仓库同时包含 Apache-2.0 许可的第三方代码（自 [miuix](https://github.com/compose-miuix-ui/miuix) 等引入的文件保留其原始版权与许可声明）。AGPL-3.0 与 GPL-3.0 兼容（AGPL-3.0 §13）：参考或移植 GPL-3.0 项目（如 [SoundMan](https://github.com/killerprojecte/SoundMan)）时，本项目整体以 AGPL-3.0 授权分发；衍生作品须以 AGPL-3.0 授权公开，并保留应用内“参考与致谢”。

@@ -1,0 +1,36 @@
+name: 功能请求
+description: 提出新功能或改进建议
+title: "[FEATURE] "
+labels: ["feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 需求 / 痛点
+      description: 这个功能要解决什么问题？涉及哪个目标应用或场景？
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的解决方案（可选）
+      description: 希望模块如何实现或交互
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 参考实现（可选）
+      description: 其他模块 / 项目是否有类似实现？请附链接
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认事项
+      options:
+        - label: 我已搜索过现有 Issue，确认不是重复请求
+          required: true
