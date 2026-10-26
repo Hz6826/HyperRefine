@@ -3,6 +3,9 @@ contact_links:
   - name: 💬 Telegram 群组
     url: https://t.me/HyperRefine
     about: 使用问题、讨论与反馈
-  - name: 📖 文档
-    url: https://github.com/Ianzb/HyperRefine#readme
-    about: 提交 Issue 前请先查阅 README 与 docs/ 下的说明
+  - name: 📖 通用文档
+    url: https://github.com/Ianzb/HyperRefine/tree/master/docs
+    about: 接口、二次开发、原生 Hook 与开发工作流
+  - name: 📚 功能说明
+    url: https://github.com/Ianzb/HyperRefine/tree/master/docs/features
+    about: 状态栏、通知、图标资源等功能细节与验证说明

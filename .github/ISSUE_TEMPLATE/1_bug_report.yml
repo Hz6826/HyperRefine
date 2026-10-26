@@ -8,6 +8,7 @@ body:
       value: |
         感谢反馈！提交前请先搜索现有 Issue，并确认已在 LSPosed 中启用模块、重启过目标应用。
         功能建议请使用「功能请求」模板。
+        使用说明见 [README](https://github.com/Ianzb/HyperRefine#readme)，通用开发文档见 [docs/](https://github.com/Ianzb/HyperRefine/tree/master/docs)，具体功能说明见 [docs/features/](https://github.com/Ianzb/HyperRefine/tree/master/docs/features)。
 
   - type: input
     id: version
@@ -35,16 +36,39 @@ body:
         - 超级小爱输入法（com.xiaomi.type）
         - 系统桌面（com.miui.home）
         - 小米扫码（com.xiaomi.scanner）
+        - 其他小米系统应用（请在描述中注明包名）
         - 不确定 / 其他
     validations:
       required: true
 
   - type: input
+    id: app_version
+    attributes:
+      label: 应用版本（版本序号）
+      description: 受影响的系统 / 目标应用版本与 versionCode，如 16.0.0（16000000）；不确定可留空
+      placeholder: 16.0.0（16000000）
+    validations:
+      required: false
+
+  - type: input
     id: device
     attributes:
       label: 系统与设备
-      description: 系统版本、机型与设备类型（手机 / 平板 / 折叠屏），如 HyperOS 4 (Android 15) - 小米 15 - 手机
-      placeholder: HyperOS 4 (Android 15) - 小米 15 - 手机
+      description: 系统版本与机型，如 HyperOS 4（Android 17）- 小米 15
+      placeholder: HyperOS 4（Android 17）- 小米 15
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device_type
+    attributes:
+      label: 设备类型
+      description: 部分功能按手机 / 平板 / 折叠屏区分
+      options:
+        - 手机
+        - 平板
+        - 折叠屏
+        - 不确定
     validations:
       required: true
 
@@ -72,7 +96,7 @@ body:
     id: logs
     attributes:
       label: 日志 / 截图（可选）
-      description: 可通过 adb logcat -s HyperRefine 抓取日志，或直接粘贴截图
+      description: 可执行 adb logcat -v time > logcat.txt 抓取完整日志，或直接粘贴截图；请勿提交账号、密钥等隐私信息
       render: shell
     validations:
       required: false
