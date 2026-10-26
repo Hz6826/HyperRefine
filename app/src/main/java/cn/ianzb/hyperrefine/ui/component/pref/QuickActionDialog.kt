@@ -142,7 +142,7 @@ private suspend fun restartPackages(context: Context, packages: List<String>) {
     if (packages.isEmpty()) return
     val results = packages.map { packageName ->
         withContext(Dispatchers.IO) {
-            AppRestarter.restart(context, packageName)
+            AppRestarter.restart(packageName)
         }
     }
     val message = if (results.all { it }) {

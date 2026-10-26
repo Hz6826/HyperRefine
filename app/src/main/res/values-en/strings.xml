@@ -454,7 +454,8 @@
     <string name="export_settings_summary">Save the current settings as a JSON file</string>
     <string name="import_settings">Import Settings</string>
     <string name="import_settings_summary">Import settings from a JSON file</string>
-    <string name="import_success">Import successful, restarting app</string>
+    <string name="import_success">Import successful, %1$d setting(s) updated</string>
+    <string name="import_success_unchanged">Import successful, no settings changed</string>
     <string name="import_failed">Import failed, invalid file format</string>
     <string name="export_success">Export successful</string>
     <string name="export_failed">Export failed</string>

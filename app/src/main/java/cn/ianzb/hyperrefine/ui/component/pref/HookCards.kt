@@ -12,11 +12,16 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
-/** 副标题：基础文案 +（可选）Hook 生效状态。 */
+/**
+ * 副标题：基础文案 +（可选）Hook 生效状态。
+ *
+ * 只在功能已启用且开关打开时展示生效状态：设备不支持（[enabled] 为 false）或
+ * 功能关闭时，历史运行证据没有意义，避免出现“选项已关闭却显示已生效”。
+ */
 @Composable
-private fun optionSummary(spec: OptionSpec): String? {
+private fun optionSummary(spec: OptionSpec, enabled: Boolean, active: Boolean): String? {
     val base = spec.summaryRes.takeIf { it != 0 }?.let { stringResource(it) }
-    if (!spec.showStatus) return base
+    if (!spec.showStatus || !enabled || !active) return base
     val applied = rememberHookApplied(spec.key)
     val status = stringResource(
         if (applied) R.string.hook_status_applied else R.string.hook_status_not_applied
@@ -35,7 +40,7 @@ fun HookSwitchCard(
     val checked = ConfigState.bool(spec.key, spec.defaultBoolean)
     SwitchPreference(
         title = stringResource(spec.titleRes),
-        summary = optionSummary(spec),
+        summary = optionSummary(spec, enabled, checked),
         checked = checked,
         onCheckedChange = {
             ConfigState.set(spec.key, it)
@@ -59,7 +64,7 @@ fun HookCheckboxCard(
     val checked = ConfigState.bool(spec.key, spec.defaultBoolean)
     CheckboxPreference(
         title = stringResource(spec.titleRes),
-        summary = optionSummary(spec),
+        summary = optionSummary(spec, enabled, checked),
         checked = checked,
         onCheckedChange = {
             ConfigState.set(spec.key, it)

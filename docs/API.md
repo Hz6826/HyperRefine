@@ -501,7 +501,7 @@ data class OptionSpec(
 | `sliderUnitRes` / `sliderValueLabelRes` | SLIDER | `sliderUnitRes`=数值**右侧**单位；`sliderValueLabelRes`=数值**左侧**标签。**两者都不设时**标题才会显示在滑块外面，详见下文「`HookSliderCard` 细则」 |
 | `targetPackages` | 全部 | 目标包，用于作用域申请 |
 | `deviceScope` | 全部 | 设备形态白名单（`PHONE` / `PAD` / `FOLD`）；非白名单设备上组件**禁用灰显不隐藏**，更改「当前设备类型」后实时刷新。空 = 各设备通用 |
-| `showStatus` | SWITCH / CHECKBOX | 在副标题末尾展示该键在目标进程的 Hook 生效状态（见 [4.5 Hook 生效状态](#45-hook-生效状态广播回报)），目标进程重启后刷新 |
+| `showStatus` | SWITCH / CHECKBOX | 在副标题末尾展示该键在目标进程的 Hook 生效状态（见 [4.5 Hook 生效状态](#45-hook-生效状态广播回报)），目标进程重启后刷新；仅在功能已启用且开关打开时展示 |
 
 ### 3.2 `OptionRegistry`
 
@@ -559,10 +559,13 @@ object ConfigState {
 
 ```kotlin
 object ConfigBackup {
+    data class ImportResult(val success: Boolean, val changedCount: Int)
     fun exportJson(): String
-    fun importJson(json: String): Boolean   // 导入后自动 ConfigState.reload()
+    fun importJson(json: String): ImportResult   // 导入后自动 ConfigState.reload()
 }
 ```
+
+`changedCount` 只统计导入后实际发生变化的配置项（迁移标记与 `runtime_` 运行态不计入）。
 
 ### 3.6 Hook 侧读取
 
@@ -631,13 +634,13 @@ object RootHelper {
 ```kotlin
 object AppRestarter {
     fun isSystemPackage(packageName: String): Boolean   // system / android / system_server
-    fun restart(context: Context, packageName: String): Boolean  // 无 Root 返回 false
+    fun restart(packageName: String): Boolean  // 无 Root 返回 false
     fun reboot(): Boolean
     fun restartSystemUi(processName: String = "com.android.systemui"): Boolean
 }
 ```
 
-- 普通应用：应用在运行时才执行 Root 下 `am force-stop <pkg>` 并拉起启动 Activity；未运行则不更改、不打开。
+- 普通应用：应用在运行时才执行 Root 下 `am force-stop <pkg>`，**只结束进程，不主动拉起应用**；未运行则不更改、不打开。
 - 系统界面（`com.android.systemui`）：`restart()` 内部改走 `restartSystemUi()`，结束进程由系统自动拉起（`pkill -f` → `killall` → `am force-stop` 兜底），**不触发系统重启**。
 - 系统目标（`system` / `android` / `system_server`）：执行 `reboot`。
 - 无 Root 时返回 `false`，调用方据此提示用户。
@@ -706,6 +709,7 @@ fun rememberHookApplied(key: String): Boolean   // 见 5.3
 - `HookStatusStore` 使用 **device-protected** 偏好，按 `versionCode` + `Settings.Global.BOOT_COUNT` 作用域：旧版本 / 上一次开机的证据自动丢弃。
 - **优化点**：不依赖系统签名级 `INTERACT_ACROSS_USERS` 权限（普通模块即可用），改用发送者 UID → 包集合校验防伪造；上报为**键集合**而非定长位掩码，天然支持任意数量与多进程功能合并。
 - 开关变更时卡片会 `removeKeys` 清除旧证据，需**重启目标进程**才会再次回报并显示「已生效」（libxposed 无法热卸载已注册的 hook）。
+- 卡片只在功能可用且开关打开时显示生效状态；设备不支持（`deviceScope` 不匹配）或开关关闭时，不展示历史「已生效」证据，避免误导。
 
 ---
 
@@ -826,7 +830,7 @@ fun HookSectionCard(
 - 搜索结果为可点击列表项（标题 = 配置项标题，摘要 = 所属分区 / 子页面多级路径「父 / 子」）；点击后收起搜索、清空输入：本页分区则滚动定位，子页面功能则调用对应层级 `HookSubPage.onOpen()` **直接打开目标页面**，**不内联渲染组件**。
 - 结果按目标去重（同一分区 / 子页面只显示一条），并包含通过 `masterKey` 引用的配置项（如滑块主开关）。
 - 箭头卡片点击回调 `onArrowClick(spec)`。
-- **重启应用**：当分区内存在 `PACKAGE_LIST` 选项，或传入 `customActionPackages` 时，顶栏右上角出现「重启」图标按钮。点击弹出 `QuickActionDialog`：每行右侧勾选应用（默认全选），底部左侧「全选 / 全不选」、右侧「重启」（无勾选时禁用），对选中包批量重启（需 Root），完成后弹出成功提示（`quick_action_restart_success`；缺少 Root 时为 `scope_restart_need_root`）。
+- **重启应用**：当分区内存在 `PACKAGE_LIST` 选项，或传入 `customActionPackages` 时，顶栏右上角出现「重启」图标按钮。点击弹出 `QuickActionDialog`：每行右侧勾选应用（默认全选），底部左侧「全选 / 全不选」、右侧「重启」（无勾选时禁用），对选中包批量结束进程（需 Root；普通应用不会自动重新打开，系统界面由系统自动拉起），完成后弹出成功提示（`quick_action_restart_success`；缺少 Root 时为 `scope_restart_need_root`）。
   - 包名来源 = 全部 `PACKAGE_LIST` 选项解析结果 + `customActionPackages`，去重。
   - 二次开发可通过 `customActionPackages` 直接暴露任意自定义应用，无需用户手动输入。
 - **顶栏扩展**：`topBarActions` 渲染在自动生成的「重启应用」按钮之前；子页面可用 `QuickActionsAction(packages)` 注入同样式的右上角入口（见 5.6）。
@@ -964,7 +968,7 @@ AnimatedVisibility(
 - 应用列表必须用 Miuix `Card` 圆角容器包裹（可滚动，`heightIn(max = 420.dp)`），**不得**用裸 `Column` 直接平铺；
 - 列表每行用 `CheckboxPreference`：`checkboxLocation = CheckboxLocation.End`（对勾必须在应用右侧），且默认**全选**；行标题为应用名、摘要为包名（两者不同时）；
 - 底部一行：左侧「全选 / 全不选」`TextButton`（`ButtonDefaults.textButtonColors()`）——**全部勾选时显示「全不选」，否则显示「全选」**；右侧「重启」主按钮（`Button(buttonColorsPrimary)`，`enabled = 已勾选项非空`）；
-- 重启只作用于**已勾选**的包；
+- 重启只作用于**已勾选**的包；普通应用只结束进程，不主动拉起，系统界面由系统自动恢复；
 - 重启完成后弹出提示：全部成功显示 `quick_action_restart_success`（「重启成功」），否则显示 `scope_restart_need_root`（缺少 Root）；
 - `system_server`（`system` / `android` / `system_server`）重启前弹出 `SystemRestartConfirmDialog` 二次确认；
 - `com.android.systemui` 由 `AppRestarter.restartSystemUi()` 结束进程（系统自动拉起），**不触发系统重启**。

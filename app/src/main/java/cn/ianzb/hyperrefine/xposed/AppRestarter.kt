@@ -1,12 +1,9 @@
 package cn.ianzb.hyperrefine.xposed
 
-import android.content.Context
-import android.content.Intent
-
 /**
  * 应用重启 / 系统重启工具。
  *
- * - 普通应用：仅当应用在运行时，Root 下 `am force-stop` 后拉起启动 Activity；未运行则不更改、不打开。
+ * - 普通应用：仅当应用在运行时，Root 下结束其进程，不主动拉起；未运行则不更改。
  * - 系统界面（`com.android.systemui`）：结束进程由系统自动拉起（`restartSystemUi`）。
  * - system_server（`system` / `android`）：只能通过重启系统恢复，执行 `reboot`。
  */
@@ -19,11 +16,11 @@ object AppRestarter {
     fun isSystemPackage(packageName: String): Boolean = packageName in SYSTEM_PACKAGES
 
     /**
-     * 重启指定应用：应用在运行时 force-stop 后重新拉起；未运行则不更改、不打开。
+     * 重启指定应用：仅结束正在运行的应用进程，不重新打开应用。
      *
      * @return true 表示操作已完成或无需操作；false 表示缺少 Root 权限。
      */
-    fun restart(context: Context, packageName: String): Boolean {
+    fun restart(packageName: String): Boolean {
         if (!XposedServiceManager.isRootAvailable) return false
         if (packageName == SYSTEM_UI_PACKAGE) return restartSystemUi()
         if (isSystemPackage(packageName)) {
@@ -31,15 +28,7 @@ object AppRestarter {
         }
         if (!isRunning(packageName)) return true
         SafeModeReader.noteUserRestart(packageName)
-        val stopped = RootHelper.exec("am force-stop $packageName")
-        val launch = runCatching {
-            context.packageManager.getLaunchIntentForPackage(packageName)
-        }.getOrNull()
-        if (launch != null) {
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            runCatching { context.startActivity(launch) }
-        }
-        return stopped
+        return RootHelper.exec("am force-stop $packageName")
     }
 
     /** 应用是否在运行（Root 下 `pidof` 匹配主进程）。 */

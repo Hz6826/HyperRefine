@@ -146,7 +146,7 @@ class ScopeListActivity : BaseSubPageActivity() {
                     val doRestart: () -> Unit = {
                         coroutineScope.launch {
                             val ok = withContext(Dispatchers.IO) {
-                                AppRestarter.restart(context, packageName)
+                                AppRestarter.restart(packageName)
                             }
                             if (!ok) {
                                 Toast.makeText(
